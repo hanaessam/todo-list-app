@@ -1,11 +1,36 @@
 from flask import Flask, request, jsonify
 import uuid
 from datetime import datetime
+import json
+import os
 
 app = Flask(__name__)
 
-# Temporary storage for tasks
-tasks = []
+# JSON file path for storing tasks
+TASKS_FILE = 'data.json'
+
+# Load tasks from JSON file
+def load_tasks():
+    if os.path.exists(TASKS_FILE):
+        try:
+            with open(TASKS_FILE, 'r') as f:
+                return json.load(f)
+        except (json.JSONDecodeError, FileNotFoundError):
+            return []
+    return []
+
+# Save tasks to JSON file
+def save_tasks():
+    try:
+        with open(TASKS_FILE, 'w') as f:
+            json.dump(tasks, f, indent=2)
+        print(f"Tasks saved successfully to {TASKS_FILE}")
+        print(f"Current tasks count: {len(tasks)}")
+    except Exception as e:
+        print(f"Error saving tasks: {e}")
+
+# Initialize tasks from file
+tasks = load_tasks()
 
 # Task model structure
 def create_task(content):
@@ -39,6 +64,7 @@ def create_new_task():
     
     task = create_task(data['content'])
     tasks.append(task)
+    save_tasks()  # Save to file
     
     return jsonify(task), 201
 
@@ -60,6 +86,7 @@ def update_task(task_id):
             return jsonify({'error': 'Status must be either "pending" or "done"'}), 400
         task['status'] = data['status']
     
+    save_tasks()  # Save to file
     return jsonify(task), 200
 
 # DELETE /tasks/<task_id> - Delete a task
@@ -72,6 +99,7 @@ def delete_task(task_id):
         return jsonify({'error': 'Task not found'}), 404
     
     tasks = [task for task in tasks if task['id'] != task_id]
+    save_tasks()  # Save to file
     
     return jsonify({'message': 'Task deleted successfully'}), 200
 
