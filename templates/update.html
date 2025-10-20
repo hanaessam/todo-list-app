@@ -1,0 +1,99 @@
+{% extends "base.html" %}
+{% block title %}Edit Task — Portfolio & API{% endblock %}
+
+{% block content %}
+<article class="card" role="article" aria-labelledby="edit-title">
+  <div class="content">
+    <h1 id="edit-title">Edit Task</h1>
+    <p class="muted">Update the content and status of an existing task.</p>
+
+    <div id="msg" class="alert" style="display:none"></div>
+
+    <form id="update-form" class="row" novalidate>
+      <div class="field">
+        <label for="u-content">Content</label>
+        <input id="u-content" name="content" maxlength="500" required placeholder="Describe the task" />
+      </div>
+
+      <div class="field">
+        <label for="u-status">Status</label>
+        <select id="u-status" name="status">
+          <option value="pending">pending</option>
+          <option value="done">done</option>
+        </select>
+      </div>
+
+      <div class="row" style="grid-auto-flow: column; justify-content: start;">
+        <button class="btn" type="submit">Save</button>
+        /Back</a>
+      </div>
+
+      <p class="muted" style="margin-top:10px">Task ID: <code id="task-id-label"></code></p>
+    </form>
+  </div>
+</article>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  // Get task id from server (route param) or fallback to query string (?id=)
+  const taskIdFromServer = "{{ task_id|default('') }}";
+  const taskId = taskIdFromServer && taskIdFromServer !== "{{ task_id|default('') }}"
+    ? taskIdFromServer
+    : (new URLSearchParams(location.search).get('id'));
+
+  const msg = document.getElementById('msg');
+  const showMsg = (text, ok=false) => {
+    msg.textContent = text;
+    msg.className = 'alert ' + (ok ? 'ok' : 'err');
+    msg.style.display = 'block';
+  };
+
+  async function loadTask() {
+    if (!taskId) {
+      showMsg('Missing task id', false);
+      return;
+    }
+    try {
+      const res = await fetch(`/tasks/${taskId}`);
+      if (!res.ok) throw new Error('Task not found');
+      const task = await res.json();
+      document.getElementById('u-content').value = task.content ?? '';
+      document.getElementById('u-status').value = task.status ?? 'pending';
+      document.getElementById('task-id-label').textContent = task.id;
+    } catch (e) {
+      showMsg(`Failed to load: ${e.message}`, false);
+    }
+  }
+
+  async function saveTask(ev) {
+    ev.preventDefault();
+    const content = document.getElementById('u-content').value.trim();
+    const status = document.getElementById('u-status').value;
+    if (!content) {
+      showMsg('Content cannot be empty', false);
+      return;
+    }
+    try {
+      const res = await fetch(`/tasks/${taskId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content, status })
+      });
+      if (!res.ok) {
+        const t = await res.text();
+        let err = 'Update failed';
+        try { err = JSON.parse(t).error || err; } catch {}
+        throw new Error(err);
+      }
+      showMsg('Task updated successfully', true);
+      setTimeout(() => (window.location.href = '/'), 700);
+    } catch (e) {
+      showMsg(e.message, false);
+    }
+  }
+
+  document.getElementById('update-form').addEventListener('submit', saveTask);
+  document.addEventListener('DOMContentLoaded', loadTask);
+</script>
+{% endblock %}

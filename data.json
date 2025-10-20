@@ -1,8 +1,144 @@
-[
-  {
-    "id": "f52eb39f-e450-425a-b524-ae3aadff5cf8",
-    "content": "task 1 edited",
-    "status": "pending",
-    "created_at": "2025-10-19T16:24:34.603147"
-  }
-]
+{
+  "groups": [
+    {
+      "id": "cea704d0-ec36-4757-a0ed-32d64a7554eb",
+      "name": "Work-Related Groups",
+      "color": "#ef4444",
+      "icon": "\ud83d\udcc5",
+      "created_at": "2025-10-20T16:40:18.616043"
+    },
+    {
+      "id": "4bbac730-b79b-4e7b-a721-ceb5fd6b83ba",
+      "name": "Personal Productivity",
+      "color": "#3b82f6",
+      "icon": "\ud83d\udcbc",
+      "created_at": "2025-10-20T16:40:18.616060"
+    },
+    {
+      "id": "5723de09-3c5a-4741-8db0-90f5a40459f6",
+      "name": "Learning & Development",
+      "color": "#8b5cf6",
+      "icon": "\ud83d\udcda",
+      "created_at": "2025-10-20T16:40:18.616063"
+    },
+    {
+      "id": "5c38b1c4-1d96-4679-a959-c9bc78fa2d35",
+      "name": "Family & Relationships",
+      "color": "#f59e0b",
+      "icon": "\ud83d\udc6a",
+      "created_at": "2025-10-20T16:40:18.616065"
+    },
+    {
+      "id": "5d8d5b92-b404-427e-9d78-0b3ccc06bca4",
+      "name": "Social & Events",
+      "color": "#10b981",
+      "icon": "\ud83c\udf89",
+      "created_at": "2025-10-20T16:40:18.616068"
+    },
+    {
+      "id": "b9616652-79c2-4247-abfe-affc0b5143fe",
+      "name": "Health & Wellness",
+      "color": "#10b981",
+      "icon": "\ud83c\udfe5",
+      "created_at": "2025-10-20T16:40:18.616070"
+    },
+    {
+      "id": "c6bf5bb4-85c2-4c3e-9982-f6c5aacb632a",
+      "name": "Creative & Hobby Groups",
+      "color": "#10b981",
+      "icon": "\ud83c\udfa8",
+      "created_at": "2025-10-20T16:40:18.616072"
+    }
+  ],
+  "tasks": [
+    {
+      "id": "9afcff87-0a94-4344-a132-eadb3ee68a00",
+      "content": "Amanda at Ruth's",
+      "group_id": "cea704d0-ec36-4757-a0ed-32d64a7554eb",
+      "status": "pending",
+      "due_date": "2025-10-20",
+      "time_range": "4:00 PM",
+      "priority": "high",
+      "tags": [],
+      "created_at": "2025-10-20T16:40:18.616086",
+      "updated_at": "2025-10-20T16:40:18.616086"
+    },
+    {
+      "id": "5c5141ec-5c12-4cdd-b783-3283c4b37ca2",
+      "content": "Holidays in Norway",
+      "group_id": "4bbac730-b79b-4e7b-a721-ceb5fd6b83ba",
+      "status": "pending",
+      "due_date": "2025-10-25",
+      "time_range": null,
+      "priority": "medium",
+      "tags": [],
+      "created_at": "2025-10-20T16:40:18.616099",
+      "updated_at": "2025-10-20T16:40:18.616100"
+    },
+    {
+      "id": "b375faf6-67ca-4b4a-a872-5217df558126",
+      "content": "Amanda at Ruth's",
+      "group_id": "5723de09-3c5a-4741-8db0-90f5a40459f6",
+      "status": "pending",
+      "due_date": null,
+      "time_range": "10:00 AM \u2013 12:00 PM",
+      "priority": "high",
+      "tags": [],
+      "created_at": "2025-10-20T16:40:18.616103",
+      "updated_at": "2025-10-20T16:40:18.616103"
+    },
+    {
+      "id": "6b999d67-7ca0-45ba-b397-6137cc11932b",
+      "content": "Read online reviews",
+      "group_id": "5c38b1c4-1d96-4679-a959-c9bc78fa2d35",
+      "status": "pending",
+      "due_date": null,
+      "time_range": "12:30 PM \u2013 3:00 PM",
+      "priority": "medium",
+      "tags": [],
+      "created_at": "2025-10-20T16:40:18.616106",
+      "updated_at": "2025-10-20T16:40:18.616106"
+    },
+    {
+      "id": "864d35eb-48a8-4994-8196-c5c42eb6ff47",
+      "content": "Take the coat to dry cleaning",
+      "group_id": null,
+      "status": "pending",
+      "due_date": null,
+      "time_range": null,
+      "priority": "medium",
+      "tags": [
+        "errand"
+      ],
+      "created_at": "2025-10-20T16:40:18.616110",
+      "updated_at": "2025-10-20T16:40:18.616111"
+    },
+    {
+      "id": "ba1b6e04-0bdb-4759-8818-4565f8df9244",
+      "content": "Help with Sam's project",
+      "group_id": null,
+      "status": "pending",
+      "due_date": null,
+      "time_range": null,
+      "priority": "high",
+      "tags": [],
+      "created_at": "2025-10-20T16:40:18.616113",
+      "updated_at": "2025-10-20T16:40:18.616114"
+    },
+    {
+      "id": "65b5241b-fd02-458e-a2fd-119c98aeaf63",
+      "content": "Fix mom's bike",
+      "group_id": null,
+      "status": "pending",
+      "due_date": null,
+      "time_range": null,
+      "priority": "medium",
+      "tags": [
+        "family",
+        "repair"
+      ],
+      "created_at": "2025-10-20T16:40:18.616116",
+      "updated_at": "2025-10-20T16:40:18.616116"
+    }
+  ]
+}

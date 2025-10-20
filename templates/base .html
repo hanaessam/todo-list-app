@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>{% block title %}App — Portfolio & API{% endblock %}</title>
+
+  <!-- Shared theme (matches index.html) -->
+  <style>
+    :root { --bg: #0b1020; --card:#10172a; --text:#e7eefc; --muted:#b9c3d9; --brand:#5aa9ff; }
+    @media (prefers-color-scheme: light) {
+      :root { --bg:#f7f9ff; --card:#ffffff; --text:#0d1b2a; --muted:#4a5568; --brand:#0b6bcb; }
+    }
+    * { box-sizing: border-box; }
+    body { margin:0; font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; background:var(--bg); color:var(--text); line-height:1.6; }
+    header.site { position: sticky; top:0; z-index: 10; backdrop-filter: blur(6px); background: color-mix(in oklab, var(--bg) 80%, transparent); border-bottom: 1px solid rgba(255,255,255,.08); }
+    .wrap { max-width: 1100px; margin: 0 auto; padding: 12px 16px; display:flex; align-items:center; justify-content:space-between; }
+    a { color: var(--brand); text-decoration: none; }
+    nav a { color: var(--text); opacity:.85; margin-left: 14px; }
+    nav a:hover { opacity:1; }
+    main { padding: clamp(16px, 4vw, 32px); display:grid; place-items:center; }
+    .card { width:min(1100px, 95vw); background:var(--card); border:1px solid rgba(255,255,255,.08); border-radius:16px; box-shadow: 0 10px 30px rgba(0,0,0,.25); overflow:hidden; }
+    .content { padding: clamp(16px, 3vw, 28px); }
+    .btn { appearance:none; border:none; padding:10px 14px; border-radius:10px; background: var(--brand); color:white; font-weight:600; cursor:pointer; text-decoration:none; display:inline-flex; align-items:center; gap:.5rem; }
+    .btn.secondary { background: transparent; color: var(--text); border:1px solid rgba(255,255,255,.18); }
+    .muted { color: var(--muted); }
+    .row { display: grid; gap: 12px; }
+    .field { display: grid; gap: 6px; }
+    input, select, textarea {
+      background: transparent; color: var(--text); border:1px solid rgba(255,255,255,.2);
+      padding: 10px 12px; border-radius: 10px; outline: none;
+    }
+    input:focus, select:focus, textarea:focus { border-color: var(--brand); box-shadow: 0 0 0 3px color-mix(in oklab, var(--brand) 20%, transparent); }
+    .alert { padding: 10px 12px; border-radius: 10px; }
+    .alert.ok { background: color-mix(in oklab, var(--brand) 20%, transparent); border:1px solid var(--brand); }
+    .alert.err { background: #5b2333; border:1px solid #a33; }
+  </style>
+
+  {% block head_extra %}{% endblock %}
+</head>
+<body>
+  <header class="site">
+    <div class="wrap">
+      <div>/🖼️ Portfolio</a></div>
+      <nav>
+        <!-- Link to API health (opens JSON) -->
+        <a href="/health" target="_blank" rel="ou keep the task edit page available -->
+        #Back</a>
+      </nav>
+    </div>
+  </header>
+
+  <main>
+    {% block content %}{% endblock %}
+  </main>
+
+  {% block scripts %}{% endblock %}
+</body>
+</html>
