@@ -49,9 +49,15 @@ def get_tasks():
 # GET /tasks/<task_id> - Get a specific task
 @app.route('/tasks/<task_id>', methods=['GET'])
 def get_task(task_id):
-    task = next((task for task in tasks if task['id'] == task_id), None)
+    task = None
+    for t in tasks:
+        if t['id'] == task_id:
+            task = t
+            break
+
     if task:
         return jsonify(task), 200
+
     return jsonify({'error': 'Task not found'}), 404
 
 # POST /tasks - Create a new task
@@ -71,8 +77,12 @@ def create_new_task():
 # PUT /tasks/<task_id> - Update a task
 @app.route('/tasks/<task_id>', methods=['PUT'])
 def update_task(task_id):
-    task = next((task for task in tasks if task['id'] == task_id), None)
-    
+    task = None
+    for t in tasks:
+        if t['id'] == task_id:
+            task = t
+            break
+
     if not task:
         return jsonify({'error': 'Task not found'}), 404
     
@@ -92,15 +102,18 @@ def update_task(task_id):
 # DELETE /tasks/<task_id> - Delete a task
 @app.route('/tasks/<task_id>', methods=['DELETE'])
 def delete_task(task_id):
-    global tasks
-    task = next((task for task in tasks if task['id'] == task_id), None)
-    
+    task = None
+    for t in tasks:
+        if t['id'] == task_id:
+            task = t
+            break
+
     if not task:
         return jsonify({'error': 'Task not found'}), 404
-    
-    tasks = [task for task in tasks if task['id'] != task_id]
+
+    tasks.remove(task)      # remove in-place
     save_tasks()  # Save to file
-    
+
     return jsonify({'message': 'Task deleted successfully'}), 200
 
 # Health check endpoint
