@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nexus Todo - Modern Task Management</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div class="app-container">
+        <!-- Sidebar -->
+        <div class="sidebar">
+            <div class="sidebar-header">
+                <div class="logo">
+                    <i class="fas fa-rocket"></i>
+                    <span>Nexus</span>
+                </div>
+                <button class="sidebar-toggle" onclick="toggleSidebar()">
+                    <i class="fas fa-bars"></i>
+                </button>
+            </div>
+
+            <div class="sidebar-content">
+                <div class="user-info">
+                    <div class="user-avatar">
+                        <i class="fas fa-user"></i>
+                    </div>
+                    <div class="user-details">
+                        <div class="user-name">Welcome Back!</div>
+                        <div class="user-status">Ready to be productive</div>
+                    </div>
+                </div>
+
+                <div class="sidebar-stats">
+                    <div class="stat-item">
+                        <div class="stat-number" id="total-tasks">0</div>
+                        <div class="stat-label">Total Tasks</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-number" id="completed-tasks">0</div>
+                        <div class="stat-label">Completed</div>
+                    </div>
+                </div>
+
+                <nav class="sidebar-nav">
+                    <div class="nav-section">
+                        <h3>Workspaces</h3>
+                        <div class="nav-items">
+                            <div class="nav-item active" data-filter="all">
+                                <i class="fas fa-layer-group"></i>
+                                <span>All Tasks</span>
+                                <span class="nav-badge" id="all-count">0</span>
+                            </div>
+                            <div class="nav-item" data-filter="today">
+                                <i class="fas fa-sun"></i>
+                                <span>Today</span>
+                                <span class="nav-badge" id="today-count">0</span>
+                            </div>
+                            <div class="nav-item" data-filter="upcoming">
+                                <i class="fas fa-calendar-alt"></i>
+                                <span>Upcoming</span>
+                                <span class="nav-badge" id="upcoming-count">0</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="nav-section">
+                        <div class="nav-header">
+                            <h3>Groups</h3>
+                            <button class="icon-btn" onclick="showCreateGroupModal()">
+                                <i class="fas fa-plus"></i>
+                            </button>
+                        </div>
+                        <div class="nav-items" id="groups-list">
+                            <!-- Groups will be loaded here -->
+                        </div>
+                    </div>
+
+                    <div class="nav-section">
+                        <h3>Tags</h3>
+                        <div class="tags-list">
+                            <div class="tag-filter" data-tag="design">
+                                <span class="tag-bubble design"></span>
+                                <span>Design</span>
+                            </div>
+                            <div class="tag-filter" data-tag="development">
+                                <span class="tag-bubble development"></span>
+                                <span>Development</span>
+                            </div>
+                            <div class="tag-filter" data-tag="personal">
+                                <span class="tag-bubble personal"></span>
+                                <span>Personal</span>
+                            </div>
+                            <button class="add-tag-btn" onclick="showCreateTagModal()">
+                                <i class="fas fa-plus"></i>
+                                Add Tag
+                            </button>
+                        </div>
+                    </div>
+                </nav>
+            </div>
+        </div>
+
+        <!-- Main Content -->
+        <div class="main-content">
+            <!-- Header -->
+            <header class="content-header">
+                <div class="header-left">
+                    <h1 id="page-title">All Tasks</h1>
+                    <div class="header-subtitle" id="page-subtitle">Manage your tasks efficiently</div>
+                </div>
+                <div class="header-actions">
+                    <div class="search-box">
+                        <i class="fas fa-search"></i>
+                        <input type="text" id="search-input" placeholder="Search tasks...">
+                    </div>
+                    <button class="btn-primary" onclick="showAddTaskModal()">
+                        <i class="fas fa-plus"></i>
+                        New Task
+                    </button>
+                </div>
+            </header>
+
+            <!-- Calendar Week View -->
+            <div class="calendar-section">
+                <div class="calendar-header">
+                    <h3>This Week</h3>
+                    <div class="calendar-nav">
+                        <button class="icon-btn"><i class="fas fa-chevron-left"></i></button>
+                        <span>Jan 8-12</span>
+                        <button class="icon-btn"><i class="fas fa-chevron-right"></i></button>
+                    </div>
+                </div>
+                <div class="week-view">
+                    <div class="week-days">
+                        <div class="day-column">
+                            <div class="day-header">Mon 8</div>
+                            <div class="time-slots">
+                                <div class="time-slot">9 AM</div>
+                                <div class="time-slot">10 AM</div>
+                                <div class="time-slot">11 AM</div>
+                                <div class="time-slot">12 PM</div>
+                                <div class="time-slot">1 PM</div>
+                                <div class="time-slot">2 PM</div>
+                                <div class="time-slot">3 PM</div>
+                            </div>
+                        </div>
+                        <!-- Add more days as needed -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tasks Grid -->
+            <div class="tasks-grid" id="tasks-grid">
+                <!-- Tasks will be loaded here dynamically -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Add Task Modal -->
+    <div id="addTaskModal" class="modal">
+        <div class="modal-content task-modal">
+            <div class="modal-header">
+                <h3>Create New Task</h3>
+                <button class="icon-btn close-btn" onclick="hideAddTaskModal()">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label for="taskContentInput">Task Description</label>
+                    <textarea id="taskContentInput" placeholder="What needs to be done?" rows="3"></textarea>
+                </div>
+                
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="taskGroupSelect">Group</label>
+                        <select id="taskGroupSelect">
+                            <option value="">No Group</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="taskPrioritySelect">Priority</label>
+                        <select id="taskPrioritySelect">
+                            <option value="low">Low</option>
+                            <option value="medium" selected>Medium</option>
+                            <option value="high">High</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="taskDueDate">Due Date</label>
+                        <input type="date" id="taskDueDate">
+                    </div>
+                    <div class="form-group">
+                        <label for="taskDueTime">Time</label>
+                        <input type="time" id="taskDueTime">
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label>Tags</label>
+                    <div class="tags-input-container" id="tagsContainer">
+                        <input type="text" id="tagInput" placeholder="Add tags...">
+                    </div>
+                </div>
+            </div>
+            <div class="modal-actions">
+                <button class="btn-outline" onclick="hideAddTaskModal()">Cancel</button>
+                <button class="btn-primary" onclick="addTask()">
+                    <i class="fas fa-plus"></i>
+                    Create Task
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Edit Task Modal -->
+    <div id="editTaskModal" class="modal">
+        <div class="modal-content task-modal">
+            <div class="modal-header">
+                <h3>Edit Task</h3>
+                <button class="icon-btn close-btn" onclick="hideEditTaskModal()">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <!-- Same form as add task, populated with existing data -->
+            </div>
+            <div class="modal-actions">
+                <button class="btn-danger" onclick="deleteCurrentTask()">
+                    <i class="fas fa-trash"></i>
+                    Delete
+                </button>
+                <div>
+                    <button class="btn-outline" onclick="hideEditTaskModal()">Cancel</button>
+                    <button class="btn-primary" onclick="updateTask()">Save Changes</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Create Group Modal -->
+    <div id="createGroupModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Create New Group</h3>
+                <button class="icon-btn close-btn" onclick="hideCreateGroupModal()">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label for="groupNameInput">Group Name</label>
+                    <input type="text" id="groupNameInput" placeholder="Enter group name">
+                </div>
+                <div class="form-group">
+                    <label for="groupIconSelect">Icon</label>
+                    <select id="groupIconSelect">
+                        <option value="📁">📁 Folder</option>
+                        <option value="📅">📅 Calendar</option>
+                        <option value="💼">💼 Briefcase</option>
+                        <option value="✈️">✈️ Travel</option>
+                        <option value="🛒">🛒 Shopping</option>
+                        <option value="🏠">🏠 Home</option>
+                    </select>
+                </div>
+            </div>
+            <div class="modal-actions">
+                <button class="btn-outline" onclick="hideCreateGroupModal()">Cancel</button>
+                <button class="btn-primary" onclick="createGroup()">Create Group</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Notification -->
+    <div id="toast" class="toast"></div>
+
+    <script src="{{ url_for('static', filename='script.js') }}"></script>
+</body>
+</html>
