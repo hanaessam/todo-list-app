@@ -464,9 +464,46 @@ body {
     overflow: hidden;
 }
 
+/* Vertical week view: stack days for a clearer vertical timeline */
 .week-days {
-    display: grid;
-    grid-template-columns: repeat(5, 1fr);
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 12px;
+}
+
+.day-row {
+    display: flex;
+    gap: 12px;
+    align-items: flex-start;
+    padding: 8px;
+    border-radius: 8px;
+    background: transparent;
+}
+
+.day-column {
+    display: flex;
+    flex-direction: row;
+    width: 100%;
+    align-items: flex-start;
+}
+
+.day-header {
+    width: 120px;
+    min-width: 120px;
+    padding: 12px 16px;
+    background: var(--bg-secondary);
+    border-radius: 8px;
+    text-align: left;
+    font-weight: 700;
+}
+
+.time-slots {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 8px;
 }
 
 .day-column {
@@ -495,6 +532,13 @@ body {
     font-size: 12px;
     color: var(--text-muted);
     text-align: center;
+}
+
+.time-slot {
+    text-align: left;
+    padding: 10px 12px;
+    background: var(--bg-secondary);
+    border-radius: 8px;
 }
 
 .time-slot:last-child {
@@ -823,6 +867,93 @@ body {
     align-items: center;
 }
 
+/* Multi-select (chip + dropdown) */
+.multi-select {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex: 1;
+    min-width: 160px;
+}
+
+.multi-select .chips {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+    max-width: 60%;
+}
+
+.multi-select .chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 8px;
+    border-radius: 999px;
+    font-size: 13px;
+    background: var(--bg-tertiary);
+    color: var(--text-primary);
+}
+
+.multi-select .chip .remove-chip {
+    cursor: pointer;
+    padding: 2px 4px;
+    border-radius: 6px;
+    font-weight: 700;
+}
+
+.multi-select .multi-input {
+    background: none;
+    border: none;
+    color: var(--text-primary);
+    outline: none;
+    min-width: 120px;
+    padding: 8px 4px;
+}
+
+.multi-select .options {
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: calc(100% + 8px);
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: 10px;
+    max-height: 220px;
+    overflow-y: auto;
+    z-index: 1200;
+    box-shadow: var(--shadow);
+}
+
+.multi-select .option {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    padding: 8px 12px;
+    cursor: pointer;
+    color: var(--text-primary);
+}
+
+.multi-select .option:hover {
+    background: var(--bg-hover);
+}
+
+.multi-select .option .tag-bubble {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+}
+
+.multi-select .option.selected {
+    background: rgba(99,102,241,0.08);
+}
+
+.multi-select .no-options {
+    padding: 12px;
+    color: var(--text-muted);
+}
+
 .tag-pill {
     background: var(--accent-primary);
     color: white;
@@ -853,6 +984,53 @@ body {
     color: var(--text-primary);
     outline: none;
     min-width: 100px;
+}
+
+/* color palette for tag modals */
+.color-palette {
+    display: flex;
+    gap: 8px;
+    margin-top: 8px;
+    flex-wrap: wrap;
+}
+
+.color-swatch {
+    width: 28px;
+    height: 28px;
+    border-radius: 6px;
+    border: 2px solid transparent;
+    cursor: pointer;
+}
+
+.color-swatch.active {
+    border-color: rgba(255,255,255,0.2);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+}
+
+/* color input + hex display row */
+.color-input-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.color-input-row input[type="color"] {
+    width: 44px;
+    height: 36px;
+    padding: 2px;
+    border-radius: 8px;
+    border: 1px solid var(--border-color);
+    cursor: pointer;
+}
+
+.color-value {
+    font-family: 'Courier New', monospace;
+    color: var(--text-primary);
+    background: rgba(255,255,255,0.03);
+    padding: 6px 8px;
+    border-radius: 6px;
+    font-size: 13px;
+    border: 1px solid var(--border-color);
 }
 
 /* Toast */

@@ -22,15 +22,7 @@
             </div>
 
             <div class="sidebar-content">
-                <div class="user-info">
-                    <div class="user-avatar">
-                        <i class="fas fa-user"></i>
-                    </div>
-                    <div class="user-details">
-                        <div class="user-name">Welcome Back!</div>
-                        <div class="user-status">Ready to be productive</div>
-                    </div>
-                </div>
+                <!-- user info removed for a cleaner sidebar -->
 
                 <div class="sidebar-stats">
                     <div class="stat-item">
@@ -51,6 +43,16 @@
                                 <i class="fas fa-layer-group"></i>
                                 <span>All Tasks</span>
                                 <span class="nav-badge" id="all-count">0</span>
+                            </div>
+                            <div class="nav-item" data-filter="pending">
+                                <i class="fas fa-hourglass-half"></i>
+                                <span>Pending</span>
+                                <span class="nav-badge" id="pending-count">0</span>
+                            </div>
+                            <div class="nav-item" data-filter="completed">
+                                <i class="fas fa-check-circle"></i>
+                                <span>Completed</span>
+                                <span class="nav-badge" id="completed-count">0</span>
                             </div>
                             <div class="nav-item" data-filter="today">
                                 <i class="fas fa-sun"></i>
@@ -79,23 +81,8 @@
 
                     <div class="nav-section">
                         <h3>Tags</h3>
-                        <div class="tags-list">
-                            <div class="tag-filter" data-tag="design">
-                                <span class="tag-bubble design"></span>
-                                <span>Design</span>
-                            </div>
-                            <div class="tag-filter" data-tag="development">
-                                <span class="tag-bubble development"></span>
-                                <span>Development</span>
-                            </div>
-                            <div class="tag-filter" data-tag="personal">
-                                <span class="tag-bubble personal"></span>
-                                <span>Personal</span>
-                            </div>
-                            <button class="add-tag-btn" onclick="showCreateTagModal()">
-                                <i class="fas fa-plus"></i>
-                                Add Tag
-                            </button>
+                        <div class="tags-list" id="tags-list">
+                            <!-- tags loaded dynamically -->
                         </div>
                     </div>
                 </nav>
@@ -203,8 +190,13 @@
 
                 <div class="form-group">
                     <label>Tags</label>
-                    <div class="tags-input-container" id="tagsContainer">
-                        <input type="text" id="tagInput" placeholder="Add tags...">
+                    <div class="tags-input-container">
+                        <div class="multi-select" id="taskTagMulti">
+                            <div class="chips" id="taskTagChips"></div>
+                            <input type="text" class="multi-input" id="taskTagInput" placeholder="Search tags or create..." autocomplete="off">
+                            <div class="options" id="taskTagOptions" style="display:none"></div>
+                        </div>
+                        <button class="icon-btn" type="button" onclick="openCreateTagModal()" title="Create tag"><i class="fas fa-plus"></i></button>
                     </div>
                 </div>
             </div>
@@ -272,6 +264,68 @@
             <div class="modal-actions">
                 <button class="btn-outline" onclick="hideCreateGroupModal()">Cancel</button>
                 <button class="btn-primary" onclick="createGroup()">Create Group</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Create Tag Modal -->
+    <div id="createTagModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Create Tag</h3>
+                <button class="icon-btn close-btn" onclick="closeCreateTagModal()">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label for="newTagName">Name</label>
+                    <input type="text" id="newTagName" placeholder="Tag name">
+                </div>
+                <div class="form-group">
+                    <label for="newTagColor">Color</label>
+                    <div class="color-input-row">
+                        <input type="color" id="newTagColor" value="#cccccc">
+                        <span class="color-value" id="newTagColorValue">#cccccc</span>
+                    </div>
+                    <div class="color-palette" id="newTagPalette" aria-hidden="false"></div>
+                </div>
+            </div>
+            <div class="modal-actions">
+                <button class="btn-outline" onclick="closeCreateTagModal()">Cancel</button>
+                <button class="btn-primary" onclick="createTagFromModal()">Create Tag</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Edit Tag Modal -->
+    <div id="editTagModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Edit Tag</h3>
+                <button class="icon-btn close-btn" onclick="closeEditTagModal()">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="editTagId">
+                <div class="form-group">
+                    <label for="editTagName">Name</label>
+                    <input type="text" id="editTagName" placeholder="Tag name">
+                </div>
+                <div class="form-group">
+                    <label for="editTagColor">Color</label>
+                    <div class="color-input-row">
+                        <input type="color" id="editTagColor" value="#cccccc">
+                        <span class="color-value" id="editTagColorValue">#cccccc</span>
+                    </div>
+                    <div class="color-palette" id="editTagPalette" aria-hidden="false"></div>
+                </div>
+            </div>
+            <div class="modal-actions">
+                <button class="btn-outline" onclick="closeEditTagModal()">Cancel</button>
+                <button class="btn-primary" onclick="updateTagFromModal()">Save</button>
+                <button class="btn-danger" onclick="deleteTagFromModal()">Delete</button>
             </div>
         </div>
     </div>
