@@ -63,15 +63,31 @@ docker-compose exec db pg_dump -U postgres -d todo > backup.sql
 ```
 
 ### Public Docker image
-A public image is available on Docker Hub: [mazenbahgat/todo-list-app](https://hub.docker.com/r/mazenbahgat/todo-list-app)
+A public image is available on Docker Hub: [mazenbahgat/todo-list-app-web-test-2](https://hub.docker.com/r/mazenbahgat/todo-list-app-web-test-2)
+
 
 To pull and run it:
 
 ```powershell
-docker pull mazenbahgat/todo-list-app
-docker run -d -p 5000:5000 mazenbahgat/todo-list-app
+docker pull mazenbahgat/todo-list-app-web-test-2
+docker run -d -p 5000:5000 mazenbahgat/todo-list-app-web-test-2
 ```
-After running any container, visit http://localhost:5000 in your browser to access the UI.
+
+To use the published image with docker-compose (the provided compose file already references the image), run:
+
+```powershell
+docker-compose up -d
+```
+
+To update the running service to the latest image from Docker Hub:
+
+```powershell
+docker-compose pull web
+docker-compose up -d
+```
+
+After running the containers, visit http://localhost:5000 in your browser to access the UI.
+and on http://172.18.0.3:5000
 
 ## API Endpoints
 
