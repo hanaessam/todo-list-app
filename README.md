@@ -1,6 +1,6 @@
-# Todo List App
+# Dockerized Todo List App
 
-A simple RESTful API for managing todo tasks built with Flask. Tasks are persisted to a JSON file for data storage.
+A simple RESTful API for managing todo tasks built with Flask. The app runs either directly with Python or inside Docker. When using Docker Compose the database runs as a separate Postgres service and data is stored on a named Docker volume so it persists across container restarts.
 
 ## Local Installation
 
@@ -19,25 +19,50 @@ python app.py
 The server will start on `http://localhost:5000`
 
 
+## Docker / Docker Compose
 
-## Docker
+This repository includes a `docker-compose.yml` that runs two services:
 
-You can build and run the app inside Docker. There's a `Dockerfile` included for this purpose.
+- `db` — Postgres 15 database. The compose file creates a named volume for Postgres data so the database files persist on your machine even if the container is removed.
+- `web` — the Flask app built from the included `Dockerfile`.
 
-Build the image locally:
+Key points:
+
+- Database credentials and the connection string are provided via the `DATABASE_URL` environment variable in `docker-compose.yml`.
+- The Postgres data is stored in a Docker volume (see `volumes:` in `docker-compose.yml`) — this is what gives you persistence across container restarts.
+
+Quick start (PowerShell):
 
 ```powershell
-docker build -t todo-list-app .
+docker-compose up -d
 ```
 
-Run the container locally (maps container port 5000 to host port 5000):
+Stop containers (volume remains):
 
 ```powershell
-docker run -d -p 5000:5000 todo-list-app
+docker-compose down
 ```
 
-## Public Docker image
+To inspect the named volume and verify its existence:
 
+```powershell
+docker volume ls
+docker volume inspect <volume_name>
+```
+
+To inspect the DB directly (runs psql inside the `db` container):
+
+```powershell
+docker-compose exec db psql -U postgres -d todo -c "SELECT count(*) FROM tasks;"
+```
+
+Backup DB before big changes:
+
+```powershell
+docker-compose exec db pg_dump -U postgres -d todo > backup.sql
+```
+
+### Public Docker image
 A public image is available on Docker Hub: [mazenbahgat/todo-list-app](https://hub.docker.com/r/mazenbahgat/todo-list-app)
 
 To pull and run it:
@@ -46,333 +71,68 @@ To pull and run it:
 docker pull mazenbahgat/todo-list-app
 docker run -d -p 5000:5000 mazenbahgat/todo-list-app
 ```
-
-After running any container, visit `http://localhost:5000` in your browser to access the UI.
-
-
-
-## Front-end
-
-This project includes a minimal web UI to interact with the API. Files of interest:
-
-- `templates/index.html` — main UI for listing and creating tasks
-- `templates/update.html` — UI for editing a task
-- `static/script.js` — client-side JavaScript that calls the API (Fetch)
-- `static/style.css` — basic styles for the UI
-
-The front-end lets you:
-
-- View all tasks
-- Create new tasks
-- Mark tasks as done/undone
-- Edit task content
-- Delete tasks
-
-![App screenshot](screenshot.jpg)
-
-
-## Backend 
-
-The backend supports the following features:
-
-- Groups support: tasks can belong to a group. Groups have their own endpoints:
-  - **GET** `/groups` — list all groups
-  - **POST** `/groups` — create a new group (body: `name`, optional `color` and `icon`)
-  - **DELETE** `/groups/<group_id>` — delete a group and any tasks attached to it
-- Tasks now include additional fields:
-  - `group_id` (string|null) — the ID of the group the task belongs to
-  - `due_date` (string|null) — optional due date (YYYY-MM-DD)
-  - `time_range` (string|null) — optional time or time window
-  - `priority` (string) — task priority (e.g., `low`, `medium`, `high`)
-  - `tags` (array) — list of string tags for filtering/categorization
-  - `updated_at` (string) — ISO timestamp of last update
-
-These fields are present in responses from the tasks endpoints. Example task object now looks like:
-
-```json
-{
-  "id": "...",
-  "content": "Buy groceries",
-  "group_id": null,
-  "status": "pending",
-  "due_date": "2025-10-24",
-  "time_range": "4:00 PM",
-  "priority": "high",
-  "tags": ["errand"],
-  "created_at": "2025-10-19T16:24:34.603147",
-  "updated_at": "2025-10-19T16:24:34.603147"
-}
-```
-
-The app also initializes sample groups and tasks on first run (see `init_sample_data()` in `app.py`). This provides starter data for both groups and tasks so the UI shows meaningful content out-of-the-box.
+After running any container, visit http://localhost:5000 in your browser to access the UI.
 
 ## API Endpoints
 
-### Groups
-1. Get All Groups
-**GET** `/groups`
+The server exposes these endpoints (all return JSON):
 
-Returns all groups in the system.
+Groups
+- GET /groups — list all groups
+- POST /groups — create a group (body: { name, color?, icon? })
+- DELETE /groups/<group_id> — delete a group (tasks are un-grouped)
 
-**Response:**
-```json
-{
-  "groups": [
-    {
-      "id": "...",
-      "name": "Work-Related Groups",
-      "color": "#ef4444",
-      "icon": "📅",
-      "created_at": "2025-10-19T16:24:34.603147"
-    }
-  ]
-}
-```
+Tasks
+- GET /tasks — list all tasks
+- GET /tasks/<task_id> — get a single task
+- POST /tasks — create a task (body: { content, group_id?, due_date?, time_range?, priority?, tags? })
+- PUT /tasks/<task_id> — update a task (partial updates allowed)
+- DELETE /tasks/<task_id> — delete a task
+- GET /tasks/today — tasks due today
+- GET /tasks/upcoming — tasks with due_date > today
+- GET /tasks/pending — tasks with status pending
+- GET /tasks/completed — tasks with status done
 
-2. Create Group
-**POST** `/groups`
+Tags
+- GET /tags — list tags
+- POST /tags — create a tag (body: { name, color? })
+- PUT /tags/<tag_id> — update
+- DELETE /tags/<tag_id> — delete (removes tag id from tasks)
 
-Creates a new group. Request body must include `name`. Optional `color` and `icon` can be provided.
+Counts
+- GET /tasks/counts — full counts (total, pending, completed, today, upcoming, per_group)
+- GET /tasks/counts/summary — lightweight summary (total, pending, completed)
 
-**Request body:**
-```json
-{ "name": "Personal", "color": "#3b82f6", "icon": "💼" }
-```
+Health
+- GET /health — basic health status (may include task count)
 
-**Response (201):**
-```json
-{
-  "id": "...",
-  "name": "Personal",
-  "color": "#3b82f6",
-  "icon": "💼",
-  "created_at": "2025-10-19T16:24:34.603147"
-}
-```
+## Data Model (brief)
 
-3. Delete Group
-**DELETE** `/groups/<group_id>`
+Each task includes these fields (JSON):
 
-Deletes a group and any tasks that belong to it.
+- id (string, uuid)
+- content (string)
+- group_id (string|null)
+- status ("pending" | "done")
+- due_date (YYYY-MM-DD|null)
+- time_range (string|null)
+- priority (string)
+- tags (array of tag objects)
+- created_at, updated_at (ISO timestamps)
 
-**Response (200):**
-```json
-{ "message": "Group deleted successfully" }
-```
+## Persistence
 
-### 1. Get All Tasks
-**GET** `/tasks`
+- The database service in `docker-compose.yml` uses a named Docker volume to persist Postgres data. That volume survives `docker-compose down` (unless you explicitly remove it).
+- To confirm persistence: create data (via the UI or API), run `docker-compose down`, then `docker-compose up -d` and verify the same rows are present in the DB.
 
-Returns all tasks in the system.
+## Notes
 
-**Response:**
-```json
-{
-  "tasks": [
-    {
-      "id": "f52eb39f-e450-425a-b524-ae3aadff5cf8",
-      "content": "Buy groceries",
-      "group_id": null,
-      "status": "pending",
-      "due_date": null,
-      "time_range": null,
-      "priority": "medium",
-      "tags": [],
-      "created_at": "2025-10-19T16:24:34.603147",
-      "updated_at": "2025-10-19T16:24:34.603147"
-    }
-  ]
-}
-```
+- The app is designed to be lightweight and suitable for local development. For production use you'd want to add authentication, migrations with Alembic, and backup/restore procedures for the DB.
 
-### 2. Get Single Task
-**GET** `/tasks/<task_id>`
+## Demo
+![alt text](screenshot-1.png)
+![alt text](screenshot-2.png)
+![alt text](screenshot-3.png)
+![alt text](screenshot-4.png)
+![alt text](screenshot-5.png)
 
-Returns a specific task by its ID.
-
-**Response (200):**
-```json
-{
-  "id": "f52eb39f-e450-425a-b524-ae3aadff5cf8",
-  "content": "Buy groceries",
-  "group_id": null,
-  "status": "pending",
-  "due_date": null,
-  "time_range": null,
-  "priority": "medium",
-  "tags": [],
-  "created_at": "2025-10-19T16:24:34.603147",
-  "updated_at": "2025-10-19T16:24:34.603147"
-}
-```
-
-**Response (404):**
-```json
-{
-  "error": "Task not found"
-}
-```
-
-### 3. Create New Task
-**POST** `/tasks`
-
-Creates a new task.
-
-**Request Body:**
-```json
-{
-  "content": "Buy groceries",
-  "group_id": null,
-  "due_date": "2025-10-24",
-  "time_range": "4:00 PM",
-  "priority": "high",
-  "tags": ["errand"]
-}
-```
-
-**Response (201):**
-```json
-{
-  "id": "f52eb39f-e450-425a-b524-ae3aadff5cf8",
-  "content": "Buy groceries",
-  "group_id": null,
-  "status": "pending",
-  "due_date": "2025-10-24",
-  "time_range": "4:00 PM",
-  "priority": "high",
-  "tags": ["errand"],
-  "created_at": "2025-10-19T16:24:34.603147",
-  "updated_at": "2025-10-19T16:24:34.603147"
-}
-```
-
-**Response (400):**
-```json
-{
-  "error": "Content is required"
-}
-```
-
-### 4. Update Task
-**PUT** `/tasks/<task_id>`
-
-Updates an existing task's content and/or status.
-
-**Request Body (partial updates allowed):**
-```json
-{
-  "content": "Buy organic groceries",
-  "status": "done"
-}
-```
-
-**Response (200):**
-```json
-{
-  "id": "f52eb39f-e450-425a-b524-ae3aadff5cf8",
-  "content": "Buy organic groceries",
-  "group_id": null,
-  "status": "done",
-  "due_date": null,
-  "time_range": null,
-  "priority": "medium",
-  "tags": [],
-  "created_at": "2025-10-19T16:24:34.603147",
-  "updated_at": "2025-10-20T09:12:01.123456"
-}
-```
-
-**Response (404):**
-```json
-{
-  "error": "Task not found"
-}
-```
-
-**Response (400):**
-```json
-{
-  "error": "Status must be either \"pending\" or \"done\""
-}
-```
-
-### 5. Delete Task
-**DELETE** `/tasks/<task_id>`
-
-Deletes a task by its ID.
-
-**Response (200):**
-```json
-{
-  "message": "Task deleted successfully"
-}
-```
-
-**Response (404):**
-```json
-{
-  "error": "Task not found"
-}
-```
-
-### 6. Health Check
-**GET** `/health`
-
-Returns the health status of the API and current task count.
-
-**Response:**
-```json
-{
-  "status": "healthy",
-  "tasks_count": 3
-}
-```
-
-## Task Model
-
-Each task has the following structure:
-
-| Field | Type | Description |
-|-------|------|-------------|
-| `id` | string | UUID v4 identifier |
-| `content` | string | Task description |
-| `group_id` | string|null | ID of the group the task belongs to (nullable) |
-| `status` | string | Either "pending" or "done" |
-| `due_date` | string|null | Optional due date (YYYY-MM-DD) |
-| `time_range` | string|null | Optional time or time window |
-| `priority` | string | Task priority (e.g., `low`, `medium`, `high`) |
-| `tags` | array | Array of string tags |
-| `created_at` | string | ISO timestamp of creation |
-| `updated_at` | string | ISO timestamp of last update |
-
-## Example Usage
-
-### Using curl
-
-**Create a task:**
-```bash
-curl -X POST http://localhost:5000/tasks \
-  -H "Content-Type: application/json" \
-  -d '{"content": "Learn Flask"}'
-```
-
-**Get all tasks:**
-```bash
-curl http://localhost:5000/tasks
-```
-
-**Update a task:**
-```bash
-curl -X PUT http://localhost:5000/tasks/<task_id> \
-  -H "Content-Type: application/json" \
-  -d '{"status": "done"}'
-```
-
-**Delete a task:**
-```bash
-curl -X DELETE http://localhost:5000/tasks/<task_id>
-```
-
-## Data Storage
-
-Tasks are automatically saved to `data.json` in the application directory. The file is created automatically when the first task is added.

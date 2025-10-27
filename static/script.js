@@ -1,16 +1,25 @@
 // Global variables
 let currentTasks = [];
 let currentGroups = [];
+let currentTags = [];
 let editingTaskId = null;
 let currentFilter = 'all';
 let currentTagFilter = null;
+let currentCounts = null; // full counts (may include per_group)
+let currentCountsSummary = null; // lightweight summary (total, pending, completed)
 
 // DOM Content Loaded
 document.addEventListener('DOMContentLoaded', async function() {
     await loadGroups();
+    await loadTags();
     await loadTasks();
+    await loadCountsSummary();
     setupEventListeners();
     updateStats();
+    // initialize color palettes for tag modals
+    setupColorPalettes();
+    // hook displays for hex values
+    hookColorValueDisplays();
 });
 
 // Event Listeners
@@ -78,10 +87,246 @@ async function loadGroups() {
         renderGroups();
         populateGroupSelects();
     } catch (error) {
-        console.error('Error loading groups:', error);
+        await renderGroups();
         showToast('Error loading groups', 'error');
     }
 }
+
+
+// lightweight counts summary: total/pending/completed
+async function loadCountsSummary() {
+    try {
+        const res = await fetch('/tasks/counts/summary');
+        const data = await res.json();
+        currentCountsSummary = data;
+        // update UI badges (use summary)
+        updateStats();
+    } catch (err) {
+        console.error('Error loading counts summary', err);
+    }
+}
+
+// full counts including per-group numbers (heavier)
+async function loadCounts() {
+    try {
+        const res = await fetch('/tasks/counts');
+        const data = await res.json();
+        currentCounts = data;
+        // update UI badges
+        updateStats();
+        // re-render groups so their badges update
+        renderGroups();
+    } catch (err) {
+        console.error('Error loading counts', err);
+    }
+}
+// Load Tags
+async function loadTags() {
+    try {
+        const response = await fetch('/tags');
+        const data = await response.json();
+        const tags = data.tags || [];
+        currentTags = tags;
+        renderTags(tags);
+    } catch (error) {
+        console.error('Error loading tags:', error);
+        showToast('Error loading tags', 'error');
+    }
+}
+
+function renderTags(tags) {
+    const tagsList = document.querySelector('.tags-list');
+    if (!tagsList) return;
+
+    // keep Add Tag button at the end
+    const addButton = `<button class="add-tag-btn" onclick="openCreateTagModal()">
+                                <i class="fas fa-plus"></i>
+                                Add Tag
+                            </button>`;
+
+    const tagHtml = tags.map(t => `
+        <div class="tag-filter" data-tag-id="${t.id}" title="${t.name}">
+            <span class="tag-bubble" style="background:${t.color || '#ddd'}"></span>
+            <span>${t.name}</span>
+            <span class="tag-actions">
+                <button class="icon-btn small" onclick="openEditTagModal('${t.id}')" title="Edit tag"><i class="fas fa-edit"></i></button>
+                <button class="icon-btn small" onclick="deleteTag('${t.id}')" title="Delete tag"><i class="fas fa-trash"></i></button>
+            </span>
+        </div>
+    `).join('');
+
+    tagsList.innerHTML = tagHtml + addButton;
+
+    // Attach click listeners (filter by id)
+    const tagFilters = tagsList.querySelectorAll('.tag-filter');
+    tagFilters.forEach(tag => {
+        tag.addEventListener('click', (e) => {
+            // ignore clicks on action buttons
+            if (e.target.closest('.tag-actions')) return;
+            const tagId = tag.getAttribute('data-tag-id');
+            setTagFilter(tagId);
+        });
+    });
+
+    // update any tag checkboxes on the page AFTER tags are loaded
+    console.debug('[renderTags] currentTags updated, updating tag checkboxes', { tagCount: currentTags.length });
+    
+    // Update existing tag checkboxes if any are open
+    const addTaskCheckboxes = document.getElementById('taskTagCheckboxes');
+    if (addTaskCheckboxes) {
+        populateTagCheckboxes('taskTagCheckboxes', []);
+    }
+    
+    const editTaskCheckboxes = document.getElementById('editTaskTagCheckboxes');
+    if (editTaskCheckboxes) {
+        // Preserve existing selections during refresh
+        const currentSelections = getSelectedTagIds('editTaskTagCheckboxes');
+        populateTagCheckboxes('editTaskTagCheckboxes', currentSelections);
+    }
+}
+
+// Simplified tag selection using checkboxes
+function populateTagCheckboxes(containerId, selectedTagIds = []) {
+    const container = document.getElementById(containerId);
+    if (!container) return;
+
+    console.debug('[populateTagCheckboxes]', { containerId, selectedTagIds, tagCount: currentTags.length });
+
+    if (currentTags.length === 0) {
+        container.innerHTML = '<div class="no-tags">No tags available. Create one first.</div>';
+        return;
+    }
+
+    container.innerHTML = currentTags.map(tag => `
+        <div class="tag-checkbox-item ${selectedTagIds.includes(tag.id) ? 'selected' : ''}" data-tag-id="${tag.id}">
+            <input type="checkbox" id="tag-${tag.id}" ${selectedTagIds.includes(tag.id) ? 'checked' : ''}>
+            <span class="tag-bubble" style="background: ${tag.color || '#ccc'}"></span>
+            <label for="tag-${tag.id}" class="tag-name">${tag.name}</label>
+        </div>
+    `).join('');
+
+    // Add click handlers for the checkbox items
+    container.querySelectorAll('.tag-checkbox-item').forEach(item => {
+        item.addEventListener('click', (e) => {
+            const checkbox = item.querySelector('input[type="checkbox"]');
+            const tagId = item.getAttribute('data-tag-id');
+            
+            // Toggle if not clicking directly on checkbox
+            if (e.target !== checkbox) {
+                checkbox.checked = !checkbox.checked;
+            }
+            
+            // Update visual state
+            if (checkbox.checked) {
+                item.classList.add('selected');
+            } else {
+                item.classList.remove('selected');
+            }
+            
+            console.debug('[tag-checkbox] toggled', { tagId, checked: checkbox.checked });
+        });
+    });
+}
+
+function getSelectedTagIds(containerId) {
+    const container = document.getElementById(containerId);
+    if (!container) return [];
+    
+    const selectedIds = Array.from(container.querySelectorAll('input[type="checkbox"]:checked'))
+        .map(checkbox => checkbox.id.replace('tag-', ''));
+    
+    console.debug('[getSelectedTagIds]', { containerId, selectedIds });
+    return selectedIds;
+}
+
+function openCreateTagModal() {
+    document.getElementById('createTagModal').style.display = 'block';
+    document.getElementById('newTagName').value = '';
+    document.getElementById('newTagColor').value = '#cccccc';
+}
+
+function closeCreateTagModal() {
+    document.getElementById('createTagModal').style.display = 'none';
+}
+
+function createTagFromModal() {
+    const name = document.getElementById('newTagName').value.trim();
+    const color = document.getElementById('newTagColor').value;
+    if (!name) { showToast('Tag name required', 'error'); return; }
+
+    fetch('/tags', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, color })
+    }).then(r => {
+        if (r.ok) {
+            closeCreateTagModal();
+            loadTags();
+            showToast('Tag created');
+        } else if (r.status === 409) {
+            showToast('Tag already exists', 'error');
+        } else {
+            showToast('Error creating tag', 'error');
+        }
+    }).catch(err => { console.error(err); showToast('Error creating tag', 'error'); });
+}
+
+function openEditTagModal(tagId) {
+    fetch(`/tags`)
+        .then(r => r.json())
+        .then(data => {
+            const tg = (data.tags || []).find(x => x.id === tagId);
+            if (!tg) { showToast('Tag not found', 'error'); return; }
+            document.getElementById('editTagId').value = tg.id;
+            document.getElementById('editTagName').value = tg.name;
+            document.getElementById('editTagColor').value = tg.color || '#cccccc';
+            document.getElementById('editTagModal').style.display = 'block';
+        });
+}
+
+function closeEditTagModal() {
+    document.getElementById('editTagModal').style.display = 'none';
+}
+
+function updateTagFromModal() {
+    const id = document.getElementById('editTagId').value;
+    const name = document.getElementById('editTagName').value.trim();
+    const color = document.getElementById('editTagColor').value;
+    if (!name) { showToast('Tag name required', 'error'); return; }
+
+    fetch(`/tags/${encodeURIComponent(id)}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, color })
+    }).then(r => {
+        if (r.ok) {
+            closeEditTagModal();
+            loadTags();
+            showToast('Tag updated');
+        } else if (r.status === 409) {
+            showToast('Tag name already used', 'error');
+        } else {
+            showToast('Error updating tag', 'error');
+        }
+    }).catch(err => { console.error(err); showToast('Error updating tag', 'error'); });
+}
+
+function deleteTag(tagId) {
+    if (!confirm('Delete this tag? It will be removed from tasks.')) return;
+    fetch(`/tags/${encodeURIComponent(tagId)}`, { method: 'DELETE' })
+        .then(r => {
+            if (r.ok) { loadTags(); loadTasks(); showToast('Tag deleted'); }
+            else showToast('Error deleting tag', 'error');
+        }).catch(err => { console.error(err); showToast('Error deleting tag', 'error'); });
+}
+
+function deleteTagFromModal() {
+    const id = document.getElementById('editTagId').value;
+    deleteTag(id);
+    closeEditTagModal();
+}
+
+// create tag flow uses modal: openCreateTagModal() / createTagFromModal()
 
 // Load Tasks
 async function loadTasks() {
@@ -91,6 +336,8 @@ async function loadTasks() {
         currentTasks = data.tasks;
         renderTasks();
         updateStats();
+        // keep counts up to date
+        await loadCountsSummary();
     } catch (error) {
         console.error('Error loading tasks:', error);
         showToast('Error loading tasks', 'error');
@@ -101,11 +348,26 @@ async function loadTasks() {
 function renderGroups() {
     const groupsList = document.getElementById('groups-list');
     
+    // use counts from server when available
+    const groupCountsMap = (currentCounts && currentCounts.per_group) ? Object.fromEntries(currentCounts.per_group.map(g => [g.group_id, g.count])) : {};
+
+    // If full counts aren't loaded yet, attempt to compute a best-effort map from currentTasks
+    if (!currentCounts) {
+        const bestEffort = {};
+        currentTasks.forEach(t => {
+            if (t.group_id) bestEffort[t.group_id] = (bestEffort[t.group_id] || 0) + 1;
+        });
+        // merge bestEffort values where groupCountsMap doesn't have them
+        Object.keys(bestEffort).forEach(k => { if (!groupCountsMap[k]) groupCountsMap[k] = bestEffort[k]; });
+        // kick off a background refresh of full counts so per-group badges become accurate
+        loadCounts().catch(err => console.error('Error loading full counts in background', err));
+    }
+
     groupsList.innerHTML = currentGroups.map(group => `
         <div class="nav-item" data-group="${group.id}">
             <span>${group.icon}</span>
             <span>${group.name}</span>
-            <span class="nav-badge">${getTaskCountByGroup(group.id)}</span>
+            <span class="nav-badge">${groupCountsMap[group.id] || 0}</span>
         </div>
     `).join('');
     
@@ -154,9 +416,10 @@ function renderTasks() {
     let html = '';
     
     // Render grouped tasks
+    // Only render groups that actually have tasks (avoid empty group columns)
     currentGroups.forEach(group => {
         const groupTasks = tasksByGroup[group.id] || [];
-        if (groupTasks.length > 0 || currentFilter === 'all') {
+        if (groupTasks.length > 0) {
             html += `
                 <div class="task-column">
                     <div class="column-header">
@@ -164,10 +427,7 @@ function renderTasks() {
                         <span class="column-count">${groupTasks.length}</span>
                     </div>
                     <div class="tasks-list">
-                        ${groupTasks.length > 0 ? 
-                            groupTasks.map(task => renderTaskCard(task)).join('') :
-                            '<div class="empty-state"><i class="fas fa-inbox"></i><p>No tasks in this group</p></div>'
-                        }
+                        ${groupTasks.map(task => renderTaskCard(task)).join('')}
                     </div>
                 </div>
             `;
@@ -175,27 +435,75 @@ function renderTasks() {
     });
     
     // Render ungrouped tasks
-    if (ungroupedTasks.length > 0 || (currentFilter === 'all' && filteredTasks.length === 0)) {
+    // Render ungrouped only if there are ungrouped tasks
+    if (ungroupedTasks.length > 0) {
         html += `
             <div class="task-column">
                 <div class="column-header">
-                    <h3>📋 Personal</h3>
+                    <h3>📋 Ungrouped</h3>
                     <span class="column-count">${ungroupedTasks.length}</span>
                 </div>
                 <div class="tasks-list">
-                    ${ungroupedTasks.length > 0 ? 
-                        ungroupedTasks.map(task => renderTaskCard(task)).join('') :
-                        '<div class="empty-state"><i class="fas fa-check-circle"></i><h4>All caught up!</h4><p>No tasks to display</p></div>'
-                    }
+                    ${ungroupedTasks.map(task => renderTaskCard(task)).join('')}
                 </div>
             </div>
         `;
     }
     
+    // If nothing to show, present friendly empty-state
     tasksGrid.innerHTML = html || '<div class="empty-state"><i class="fas fa-check-circle"></i><h4>All caught up!</h4><p>No tasks match your filters</p></div>';
     
     // Add task event listeners
     addTaskEventListeners();
+    
+    // populate week view with tasks for the current week
+    populateWeekView();
+}
+
+// Populate week view calendar with tasks due this week
+function populateWeekView() {
+    const weekContainer = document.querySelector('.week-days');
+    if (!weekContainer) return;
+
+    // compute Monday as start of week
+    const today = new Date();
+    const day = today.getDay(); // 0 (Sun) - 6
+    const diffToMonday = ((day + 6) % 7); // days since Monday
+    const monday = new Date(today);
+    monday.setDate(today.getDate() - diffToMonday);
+
+    // create 7 day columns
+    const days = [];
+    for (let i = 0; i < 7; i++) {
+        const d = new Date(monday);
+        d.setDate(monday.getDate() + i);
+        days.push(d);
+    }
+
+    // build HTML for the week view
+    let html = '';
+    days.forEach(d => {
+        const dayTasks = currentTasks.filter(t => t.due_date && new Date(t.due_date).toDateString() === d.toDateString());
+        const dayLabel = d.toLocaleDateString('en-US', { weekday: 'short', day: 'numeric' });
+
+        html += `
+            <div class="day-column">
+                <div class="day-header">${dayLabel}</div>
+                <div class="time-slots">
+                    ${dayTasks.map(dt => `<div class="time-slot" data-task-id="${dt.id}">${dt.time_range ? formatTime(dt.time_range) + ' — ' : ''}${dt.content}</div>`).join('')}
+                </div>
+            </div>
+        `;
+    });
+
+    weekContainer.innerHTML = html;
+    // attach click handlers to open task editor
+    weekContainer.querySelectorAll('.time-slot').forEach(slot => {
+        slot.addEventListener('click', () => {
+            const id = slot.getAttribute('data-task-id');
+            if (id) editTask(id);
+        });
+    });
 }
 
 // Render Task Card
@@ -228,6 +536,9 @@ function renderTaskCard(task) {
                     <button class="icon-btn" onclick="toggleTaskStatus('${task.id}')" title="${task.status === 'done' ? 'Mark pending' : 'Mark done'}">
                         <i class="fas ${task.status === 'done' ? 'fa-undo' : 'fa-check'}"></i>
                     </button>
+                    <button class="icon-btn" onclick="deleteTaskFromCard('${task.id}')" title="Delete">
+                        <i class="fas fa-trash"></i>
+                    </button>
                 </div>
             </div>
             
@@ -239,12 +550,12 @@ function renderTaskCard(task) {
                         </span>
                     </div>
                 ` : ''}
-                ${dueText ? `<div class="task-time">${dueText} ${task.time_range || ''}</div>` : ''}
+                ${dueText ? `<div class="task-time">${dueText} ${task.time_range ? formatTime(task.time_range) : ''}</div>` : ''}
             </div>
             
             ${task.tags && task.tags.length > 0 ? `
                 <div class="task-tags">
-                    ${task.tags.map(tag => `<span class="task-tag">${tag}</span>`).join('')}
+                    ${task.tags.map(tag => `<span class="task-tag" style="background:${tag.color || '#eee'}">${tag.name}</span>`).join('')}
                 </div>
             ` : ''}
             
@@ -310,10 +621,10 @@ function filterTasksByCriteria(tasks) {
             break;
     }
     
-    // Tag filter
+    // Tag filter — task.tags is an array of tag objects ({id,...})
     if (currentTagFilter) {
         filtered = filtered.filter(task => 
-            task.tags && task.tags.includes(currentTagFilter)
+            task.tags && task.tags.some(t => t.id === currentTagFilter)
         );
     }
     
@@ -334,44 +645,124 @@ function setActiveFilter(filter) {
     const titleMap = {
         'all': 'All Tasks',
         'today': "Today's Tasks",
-        'upcoming': 'Upcoming Tasks'
+        'upcoming': 'Upcoming Tasks',
+        'pending': 'Pending Tasks',
+        'completed': 'Completed Tasks'
     };
     document.getElementById('page-title').textContent = titleMap[filter] || 'All Tasks';
     
-    renderTasks();
+    // Use server endpoints for certain filters
+    if (filter === 'today') {
+        fetch('/tasks/today').then(r => r.json()).then(data => { currentTasks = data.tasks || []; renderTasks(); updateStats(); }).catch(err => { console.error('Error loading today tasks', err); showToast('Error loading tasks', 'error'); });
+    } else if (filter === 'upcoming') {
+        fetch('/tasks/upcoming').then(r => r.json()).then(data => { currentTasks = data.tasks || []; renderTasks(); updateStats(); }).catch(err => { console.error('Error loading upcoming tasks', err); showToast('Error loading tasks', 'error'); });
+    } else if (filter === 'pending') {
+        fetch('/tasks/pending').then(r => r.json()).then(data => { currentTasks = data.tasks || []; renderTasks(); updateStats(); }).catch(err => { console.error('Error loading pending tasks', err); showToast('Error loading tasks', 'error'); });
+    } else if (filter === 'completed') {
+        fetch('/tasks/completed').then(r => r.json()).then(data => { currentTasks = data.tasks || []; renderTasks(); updateStats(); }).catch(err => { console.error('Error loading completed tasks', err); showToast('Error loading tasks', 'error'); });
+    } else if (filter === 'all') {
+        loadTasks();
+    } else {
+        renderTasks();
+    }
 }
 
 function setTagFilter(tag) {
-    currentTagFilter = currentTagFilter === tag ? null : tag;
-    renderTasks();
+    // toggle
+    if (currentTagFilter === tag) {
+        currentTagFilter = null;
+        // reload all tasks
+        loadTasks();
+    } else {
+        currentTagFilter = tag;
+        // fetch tasks by tag from server
+        fetch(`/tasks/tag/${encodeURIComponent(tag)}`)
+            .then(r => r.json())
+            .then(data => {
+                currentTasks = data.tasks || [];
+                renderTasks();
+                updateStats();
+            }).catch(err => {
+                console.error('Error fetching tasks by tag', err);
+                showToast('Error fetching tasks by tag', 'error');
+            });
+    }
 }
 
 function setGroupFilter(groupId) {
-    // Implement group filtering if needed
-    renderTasks();
+    // fetch tasks for the group from server
+    const group = currentGroups.find(g => g.id === groupId);
+    if (group) {
+        document.getElementById('page-title').textContent = `${group.icon} ${group.name}`;
+    }
+
+    // clear any tag filter so group selection shows group's tasks
+    currentTagFilter = null;
+    fetch(`/groups/${encodeURIComponent(groupId)}/tasks`)
+        .then(r => r.json())
+        .then(data => {
+            currentTasks = data.tasks || [];
+            renderTasks();
+            updateStats();
+        }).catch(err => {
+            console.error('Error fetching tasks by group', err);
+            showToast('Error fetching tasks by group', 'error');
+        });
 }
 
 // Update Statistics
 function updateStats() {
-    const totalTasks = currentTasks.length;
-    const completedTasks = currentTasks.filter(task => task.status === 'done').length;
-    
-    document.getElementById('total-tasks').textContent = totalTasks;
-    document.getElementById('completed-tasks').textContent = completedTasks;
-    document.getElementById('all-count').textContent = totalTasks;
-    
-    // Update today and upcoming counts
-    const today = new Date().toDateString();
-    const todayCount = currentTasks.filter(task => 
-        task.due_date && new Date(task.due_date).toDateString() === today
-    ).length;
-    
-    const upcomingCount = currentTasks.filter(task => 
-        task.due_date && new Date(task.due_date) > new Date()
-    ).length;
-    
-    document.getElementById('today-count').textContent = todayCount;
-    document.getElementById('upcoming-count').textContent = upcomingCount;
+    // Prefer server-provided full counts when available, otherwise use lightweight summary
+    if (currentCounts) {
+        document.getElementById('total-tasks').textContent = currentCounts.total;
+        document.getElementById('completed-tasks').textContent = currentCounts.completed;
+        document.getElementById('all-count').textContent = currentCounts.total;
+        const pendingBadge = document.getElementById('pending-count');
+        if (pendingBadge) pendingBadge.textContent = currentCounts.pending;
+        const completedBadge = document.getElementById('completed-count');
+        if (completedBadge) completedBadge.textContent = currentCounts.completed;
+        document.getElementById('today-count').textContent = currentCounts.today;
+        document.getElementById('upcoming-count').textContent = currentCounts.upcoming;
+    } else if (currentCountsSummary) {
+        // lightweight summary available
+        document.getElementById('total-tasks').textContent = currentCountsSummary.total;
+        document.getElementById('completed-tasks').textContent = currentCountsSummary.completed;
+        document.getElementById('all-count').textContent = currentCountsSummary.total;
+        const pendingBadge = document.getElementById('pending-count');
+        if (pendingBadge) pendingBadge.textContent = currentCountsSummary.pending;
+        const completedBadge = document.getElementById('completed-count');
+        if (completedBadge) completedBadge.textContent = currentCountsSummary.completed;
+        // today/upcoming are not part of summary; fall back to client computation
+        const today = new Date().toDateString();
+        const todayCount = currentTasks.filter(task => task.due_date && new Date(task.due_date).toDateString() === today).length;
+        const upcomingCount = currentTasks.filter(task => task.due_date && new Date(task.due_date) > new Date()).length;
+        document.getElementById('today-count').textContent = todayCount;
+        document.getElementById('upcoming-count').textContent = upcomingCount;
+    } else {
+        const totalTasks = currentTasks.length;
+        const completedTasks = currentTasks.filter(task => task.status === 'done').length;
+        
+        document.getElementById('total-tasks').textContent = totalTasks;
+        document.getElementById('completed-tasks').textContent = completedTasks;
+        document.getElementById('all-count').textContent = totalTasks;
+        
+        // Update today and upcoming counts based on currentTasks
+        const today = new Date().toDateString();
+        const todayCount = currentTasks.filter(task => 
+            task.due_date && new Date(task.due_date).toDateString() === today
+        ).length;
+        
+        const upcomingCount = currentTasks.filter(task => 
+            task.due_date && new Date(task.due_date) > new Date()
+        ).length;
+        
+        document.getElementById('today-count').textContent = todayCount;
+        document.getElementById('upcoming-count').textContent = upcomingCount;
+        const pendingBadge = document.getElementById('pending-count');
+        if (pendingBadge) pendingBadge.textContent = currentTasks.filter(t => t.status === 'pending').length;
+        const completedBadge = document.getElementById('completed-count');
+        if (completedBadge) completedBadge.textContent = completedTasks;
+    }
 }
 
 function getTaskCountByGroup(groupId) {
@@ -386,7 +777,11 @@ function showAddTaskModal() {
     document.getElementById('taskDueTime').value = '';
     document.getElementById('taskPrioritySelect').value = 'medium';
     document.getElementById('taskGroupSelect').value = '';
-    document.getElementById('tagsContainer').innerHTML = '<input type="text" id="tagInput" placeholder="Add tags...">';
+    
+    // populate tag checkboxes for selection
+    console.debug('[showAddTaskModal] populating tag checkboxes', { tagCount: currentTags.length });
+    populateTagCheckboxes('taskTagCheckboxes', []);
+    
     document.getElementById('taskContentInput').focus();
 }
 
@@ -432,32 +827,25 @@ function showEditTaskModal(task) {
             </div>
             <div class="form-group">
                 <label for="editTaskDueTime">Time</label>
-                <input type="time" id="editTaskDueTime" value="${task.time_range ? task.time_range.split(' – ')[0] : ''}">
+                <input type="time" id="editTaskDueTime" value="${task.time_range || ''}">
             </div>
         </div>
 
         <div class="form-group">
             <label>Tags</label>
-            <div class="tags-input-container" id="editTagsContainer">
-                ${task.tags && task.tags.map(tag => `
-                    <div class="tag-pill">
-                        ${tag}
-                        <span class="remove-tag" onclick="removeEditTag('${tag}')">×</span>
-                    </div>
-                `).join('')}
-                <input type="text" id="editTagInput" placeholder="Add tags...">
+            <div class="tags-input-container">
+                <div class="tag-checkboxes" id="editTaskTagCheckboxes">
+                    <!-- Tag checkboxes will be populated here -->
+                </div>
+                <button class="icon-btn" type="button" onclick="openCreateTagModal()" title="Create tag"><i class="fas fa-plus"></i></button>
             </div>
         </div>
     `;
     
-    // Add tag input event listener
-    const tagInput = document.getElementById('editTagInput');
-    tagInput.addEventListener('keypress', function(e) {
-        if (e.key === 'Enter' && this.value.trim()) {
-            addEditTag(this.value.trim());
-            this.value = '';
-        }
-    });
+    // populate tag checkboxes with preselected tag ids
+    const selectedTagIds = task.tags ? task.tags.map(t => t.id) : [];
+    console.debug('[showEditTaskModal] populating tag checkboxes', { selectedTagIds, tagCount: currentTags.length });
+    populateTagCheckboxes('editTaskTagCheckboxes', selectedTagIds);
     
     modal.style.display = 'block';
 }
@@ -498,11 +886,13 @@ async function addTask() {
     
     let timeRange = '';
     if (dueTime) {
-        timeRange = formatTime(dueTime);
+        // store raw HH:MM string for easier editing; format for display
+        timeRange = dueTime;
     }
     
-    const tags = Array.from(document.querySelectorAll('#tagsContainer .tag-pill'))
-        .map(pill => pill.textContent.replace('×', '').trim());
+    // Get selected tags using the new checkbox system
+    const tags = getSelectedTagIds('taskTagCheckboxes');
+    console.debug('[addTask] selected tags:', tags);
     
     try {
         const response = await fetch('/tasks', {
@@ -554,11 +944,12 @@ async function updateTask() {
     
     let timeRange = '';
     if (dueTime) {
-        timeRange = formatTime(dueTime);
+        timeRange = dueTime; // keep raw HH:MM
     }
     
-    const tags = Array.from(document.querySelectorAll('#editTagsContainer .tag-pill'))
-        .map(pill => pill.textContent.replace('×', '').trim());
+    // Get selected tags using the new checkbox system
+    const tags = getSelectedTagIds('editTaskTagCheckboxes');
+    console.debug('[updateTask] selected tags:', tags);
     
     try {
         const response = await fetch(`/tasks/${editingTaskId}`, {
@@ -633,6 +1024,25 @@ async function toggleTaskStatus(taskId) {
     }
 }
 
+// Delete directly from card (inline delete)
+async function deleteTaskFromCard(taskId) {
+    if (!taskId) return;
+    if (!confirm('Are you sure you want to delete this task?')) return;
+
+    try {
+        const response = await fetch(`/tasks/${taskId}`, { method: 'DELETE' });
+        if (response.ok) {
+            await loadTasks();
+            showToast('Task deleted successfully!');
+        } else {
+            showToast('Error deleting task', 'error');
+        }
+    } catch (err) {
+        console.error('Error deleting task from card:', err);
+        showToast('Error deleting task', 'error');
+    }
+}
+
 // Group Operations
 async function createGroup() {
     const name = document.getElementById('groupNameInput').value.trim();
@@ -677,6 +1087,58 @@ function addEditTag(tag) {
             <span class="remove-tag" onclick="removeEditTag('${tag}')">×</span>
         `;
         container.insertBefore(tagPill, container.lastElementChild);
+    }
+}
+
+// Color palette setup for tag modals
+function setupColorPalettes() {
+    const palette = ['#ef4444','#f97316','#f59e0b','#eab308','#10b981','#06b6d4','#3b82f6','#8b5cf6','#ec4899','#9ca3af'];
+    const newContainer = document.getElementById('newTagPalette');
+    const editContainer = document.getElementById('editTagPalette');
+
+    const build = (container, inputId) => {
+        if (!container) return;
+        container.innerHTML = palette.map(c => `<button type="button" class="color-swatch" data-color="${c}" style="background:${c}" title="${c}"></button>`).join('');
+        container.querySelectorAll('.color-swatch').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const color = btn.getAttribute('data-color');
+                const input = document.getElementById(inputId);
+                if (input) input.value = color;
+                // visual feedback
+                container.querySelectorAll('.color-swatch').forEach(b=>b.classList.remove('active'));
+                btn.classList.add('active');
+            });
+        });
+    };
+
+    build(newContainer, 'newTagColor');
+    build(editContainer, 'editTagColor');
+}
+
+// Update color value text next to inputs and hook input events
+function hookColorValueDisplays() {
+    const newInput = document.getElementById('newTagColor');
+    const editInput = document.getElementById('editTagColor');
+    const newVal = document.getElementById('newTagColorValue');
+    const editVal = document.getElementById('editTagColorValue');
+
+    const setVal = (el, display) => {
+        if (!el || !display) return;
+        display.textContent = el.value.toLowerCase();
+        // try to mark active swatch
+        const container = display.parentElement.nextElementSibling; // color-palette
+        if (container) {
+            container.querySelectorAll('.color-swatch').forEach(b => b.classList.toggle('active', b.getAttribute('data-color').toLowerCase() === el.value.toLowerCase()));
+        }
+    };
+
+    if (newInput && newVal) {
+        newInput.addEventListener('input', () => setVal(newInput, newVal));
+        setVal(newInput, newVal);
+    }
+    if (editInput && editVal) {
+        editInput.addEventListener('input', () => setVal(editInput, editVal));
+        setVal(editInput, editVal);
     }
 }
 

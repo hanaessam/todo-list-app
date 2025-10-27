@@ -1,195 +1,373 @@
 from flask import Flask, request, jsonify, render_template
 import uuid
 from datetime import datetime
-import json
 import os
+from sqlalchemy import (
+    create_engine, Column, String, Text, DateTime, ForeignKey
+)
+from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.orm import declarative_base, sessionmaker, relationship
 
-app = Flask(__name__)  # Flask serves /static by default from ./static
+app = Flask(__name__)
 
-TASKS_FILE = 'data.json'
+# DB url from env (docker-compose sets DATABASE_URL)
+DATABASE_URL = os.getenv('DATABASE_URL', 'postgresql://postgres:postgres@localhost:5432/todo')
 
-def load_data():
-    if os.path.exists(TASKS_FILE):
+engine = create_engine(DATABASE_URL, echo=False, future=True)
+SessionLocal = sessionmaker(bind=engine, expire_on_commit=False)
+Base = declarative_base()
+
+# ORM Models for Groups, Tasks, Tags 
+class Group(Base):
+    __tablename__ = 'groups'
+    id = Column(String, primary_key=True, index=True)
+    name = Column(String, nullable=False)
+    color = Column(String, nullable=True)
+    icon = Column(String, nullable=True)
+    created_at = Column(DateTime, nullable=False)
+
+class Task(Base):
+    __tablename__ = 'tasks'
+    id = Column(String, primary_key=True, index=True)
+    content = Column(Text, nullable=False)
+    group_id = Column(String, ForeignKey('groups.id'), nullable=True)
+    status = Column(String, nullable=False, default='pending')
+    due_date = Column(String, nullable=True)
+    time_range = Column(String, nullable=True)
+    priority = Column(String, nullable=True)
+    tags = Column(JSONB, nullable=True)
+    created_at = Column(DateTime, nullable=False)
+    updated_at = Column(DateTime, nullable=False)
+
+class Tag(Base):
+    __tablename__ = 'tags'
+    id = Column(String, primary_key=True, index=True)
+    name = Column(String, nullable=False, unique=True)
+    color = Column(String, nullable=True)
+    created_at = Column(DateTime, nullable=False)
+
+# create tables
+Base.metadata.create_all(bind=engine)
+
+# helpers
+def now_iso():
+    return datetime.now().isoformat()
+
+def row_to_group(g):
+    return {
+        'id': g.id,
+        'name': g.name,
+        'color': g.color,
+        'icon': g.icon,
+        'created_at': g.created_at.isoformat()
+    }
+
+def row_to_task(t):
+    # t.tags is expected to be a list of tag IDs (strings). Expand them to tag objects.
+    tag_objs = []
+    if t.tags:
         try:
-            with open(TASKS_FILE, 'r') as f:
-                return json.load(f)
-        except (json.JSONDecodeError, FileNotFoundError):
-            return {"groups": [], "tasks": []}
-    return {"groups": [], "tasks": []}
+            with SessionLocal() as session:
+                tag_rows = session.query(Tag).filter(Tag.id.in_(t.tags)).all()
+                tag_map = {tg.id: tg for tg in tag_rows}
+                for tid in t.tags:
+                    tg = tag_map.get(tid)
+                    if tg:
+                        tag_objs.append({'id': tg.id, 'name': tg.name, 'color': tg.color})
+        except Exception:
+            # fallback: return raw ids if anything goes wrong
+            tag_objs = t.tags
 
-def save_data():
-    try:
-        with open(TASKS_FILE, 'w') as f:
-            json.dump(data, f, indent=2)
-    except Exception as e:
-        print(f"Error saving data: {e}")
-
-data = load_data()
-
-def create_task(content, group_id=None, due_date=None, time_range=None, priority="medium", tags=None):
     return {
-        'id': str(uuid.uuid4()),
-        'content': content,
-        'group_id': group_id,
-        'status': 'pending',
-        'due_date': due_date,
-        'time_range': time_range,
-        'priority': priority,
-        'tags': tags or [],
-        'created_at': datetime.now().isoformat(),
-        'updated_at': datetime.now().isoformat()
+        'id': t.id,
+        'content': t.content,
+        'group_id': t.group_id,
+        'status': t.status,
+        'due_date': t.due_date,
+        'time_range': t.time_range,
+        'priority': t.priority,
+        'tags': tag_objs,
+        'created_at': t.created_at.isoformat(),
+        'updated_at': t.updated_at.isoformat()
     }
 
-def create_group(name, color=None, icon="📁"):
-    return {
-        'id': str(uuid.uuid4()),
-        'name': name,
-        'color': color or '#6366f1',
-        'icon': icon,
-        'created_at': datetime.now().isoformat()
-    }
-
-# Initialize sample data
-def init_sample_data():
-    if not data['groups']:
-        sample_groups = [
-            create_group("Work-Related Groups", "#ef4444", "📅"),
-            create_group("Personal Productivity", "#3b82f6", "💼"),
-            create_group("Learning & Development", "#8b5cf6", "📚"),
-            create_group("Family & Relationships", "#f59e0b", "👪"),
-            create_group("Social & Events", "#10b981", "🎉"),
-            create_group("Health & Wellness", "#10b981", "🏥"),
-            create_group("Creative & Hobby Groups", "#10b981", "🎨")
-        ]
-        data['groups'] = sample_groups
-        
-        sample_tasks = [
-            create_task(
-                "Amanda at Ruth's",
-                group_id=sample_groups[0]['id'],
-                due_date=datetime.now().strftime('%Y-%m-%d'),
-                time_range="4:00 PM",
-                priority="high"
-            ),
-            create_task(
-                "Holidays in Norway",
-                group_id=sample_groups[1]['id'],
-                due_date=(datetime.now().replace(day=datetime.now().day + 5)).strftime('%Y-%m-%d'),
-                priority="medium"
-            ),
-            create_task(
-                "Amanda at Ruth's",
-                group_id=sample_groups[2]['id'],
-                time_range="10:00 AM – 12:00 PM",
-                priority="high"
-            ),
-            create_task(
-                "Read online reviews",
-                group_id=sample_groups[3]['id'],
-                time_range="12:30 PM – 3:00 PM",
-                priority="medium"
-            ),
-            create_task(
-                "Take the coat to dry cleaning",
-                tags=["errand"]
-            ),
-            create_task(
-                "Help with Sam's project",
-                priority="high"
-            ),
-            create_task(
-                "Fix mom's bike",
-                tags=["family", "repair"]
-            )
-        ]
-        data['tasks'] = sample_tasks
-        save_data()
-
-init_sample_data()
-
+# Routes
 @app.route('/')
 def home():
     return render_template('index.html')
 
 # Groups API
+# GET /groups
 @app.route('/groups', methods=['GET'])
 def get_groups():
-    return jsonify({'groups': data['groups']}), 200
-
+    with SessionLocal() as session:
+        groups = session.query(Group).all()
+        return jsonify({'groups': [row_to_group(g) for g in groups]}), 200
+# POST /groups
 @app.route('/groups', methods=['POST'])
 def create_new_group():
-    request_data = request.get_json()
-    if not request_data or 'name' not in request_data or not request_data['name'].strip():
+    req = request.get_json() or {}
+    name = req.get('name', '').strip()
+    if not name:
         return jsonify({'error': 'Group name is required'}), 400
 
-    group = create_group(
-        request_data['name'].strip(), 
-        request_data.get('color'),
-        request_data.get('icon', '📁')
+    g = Group(
+        id=str(uuid.uuid4()),
+        name=name,
+        color=req.get('color'),
+        icon=req.get('icon', '📁'),
+        created_at=datetime.now()
     )
-    data['groups'].append(group)
-    save_data()
-    return jsonify(group), 201
-
+    with SessionLocal() as session:
+        session.add(g)
+        session.commit()
+        return jsonify(row_to_group(g)), 201
+# DELETE /groups/<group_id>
 @app.route('/groups/<group_id>', methods=['DELETE'])
 def delete_group(group_id):
-    data['groups'] = [g for g in data['groups'] if g['id'] != group_id]
-    data['tasks'] = [t for t in data['tasks'] if t.get('group_id') != group_id]
-    save_data()
-    return jsonify({'message': 'Group deleted successfully'}), 200
+    with SessionLocal() as session:
+        session.query(Task).filter(Task.group_id == group_id).update({'group_id': None})
+        session.query(Group).filter(Group.id == group_id).delete()
+        session.commit()
+        return jsonify({'message': 'Group deleted successfully'}), 200
 
 # Tasks API
+# GET /tasks
 @app.route('/tasks', methods=['GET'])
 def get_tasks():
-    return jsonify({'tasks': data['tasks']}), 200
+    with SessionLocal() as session:
+        tasks = session.query(Task).all()
+        return jsonify({'tasks': [row_to_task(t) for t in tasks]}), 200
 
+
+# GET /tasks/today - tasks with due_date equal to today's date (YYYY-MM-DD)
+@app.route('/tasks/today', methods=['GET'])
+def get_tasks_today():
+    today = datetime.now().date().isoformat()
+    with SessionLocal() as session:
+        tasks = session.query(Task).filter(Task.due_date == today).all()
+        return jsonify({'tasks': [row_to_task(t) for t in tasks]}), 200
+
+
+# GET /tasks/upcoming - tasks with due_date after today
+@app.route('/tasks/upcoming', methods=['GET'])
+def get_tasks_upcoming():
+    today = datetime.now().date().isoformat()
+    with SessionLocal() as session:
+        tasks = session.query(Task).filter(Task.due_date != None, Task.due_date > today).all()
+        return jsonify({'tasks': [row_to_task(t) for t in tasks]}), 200
+
+
+# GET /tasks/pending - tasks with status pending
+@app.route('/tasks/pending', methods=['GET'])
+def get_tasks_pending():
+    with SessionLocal() as session:
+        tasks = session.query(Task).filter(Task.status == 'pending').all()
+        return jsonify({'tasks': [row_to_task(t) for t in tasks]}), 200
+
+
+# GET /tasks/completed - tasks with status done/completed
+@app.route('/tasks/completed', methods=['GET'])
+def get_tasks_completed():
+    with SessionLocal() as session:
+        tasks = session.query(Task).filter(Task.status == 'done').all()
+        return jsonify({'tasks': [row_to_task(t) for t in tasks]}), 200
+# POST /tasks
 @app.route('/tasks', methods=['POST'])
 def create_new_task():
-    request_data = request.get_json()
-    if not request_data or 'content' not in request_data or not request_data['content'].strip():
+    req = request.get_json() or {}
+    content = (req.get('content') or '').strip()
+    if not content:
         return jsonify({'error': 'Content is required'}), 400
 
-    task = create_task(
-        request_data['content'].strip(),
-        request_data.get('group_id'),
-        request_data.get('due_date'),
-        request_data.get('time_range'),
-        request_data.get('priority', 'medium'),
-        request_data.get('tags', [])
-    )
-    data['tasks'].append(task)
-    save_data()
-    return jsonify(task), 201
+    # If user did not supply due_date/time, default to now's date and time
+    supplied_due = req.get('due_date')
+    supplied_time = req.get('time_range')
+    default_due = datetime.now().date().isoformat()
+    default_time = datetime.now().strftime('%H:%M')
 
+    t = Task(
+        id=str(uuid.uuid4()),
+        content=content,
+        group_id=req.get('group_id'),
+        status='pending',
+        due_date=(supplied_due if supplied_due else default_due),
+        time_range=(supplied_time if supplied_time else default_time),
+        priority=req.get('priority', 'medium'),
+        tags=req.get('tags', []),
+        created_at=datetime.now(),
+        updated_at=datetime.now()
+    )
+    with SessionLocal() as session:
+        session.add(t)
+        session.commit()
+        return jsonify(row_to_task(t)), 201
+# PUT /tasks/<task_id>
 @app.route('/tasks/<task_id>', methods=['PUT'])
 def update_task(task_id):
-    task = next((t for t in data['tasks'] if t['id'] == task_id), None)
-    if not task:
-        return jsonify({'error': 'Task not found'}), 404
+    req = request.get_json() or {}
+    with SessionLocal() as session:
+        task = session.get(Task, task_id)
+        if not task:
+            return jsonify({'error': 'Task not found'}), 404
 
-    request_data = request.get_json() or {}
-    
-    update_fields = ['content', 'group_id', 'due_date', 'time_range', 'priority', 'status', 'tags']
-    for field in update_fields:
-        if field in request_data:
-            if field == 'content' and request_data[field].strip():
-                task[field] = request_data[field].strip()
-            elif field != 'content':
-                task[field] = request_data[field]
-    
-    task['updated_at'] = datetime.now().isoformat()
-    
-    if 'status' in request_data and request_data['status'] not in ['pending', 'done']:
-        return jsonify({'error': 'Status must be either "pending" or "done"'}), 400
+        allowed = ['content', 'group_id', 'due_date', 'time_range', 'priority', 'status', 'tags']
+        for field in allowed:
+            if field in req:
+                if field == 'content':
+                    val = (req[field] or '').strip()
+                    if val:
+                        setattr(task, field, val)
+                else:
+                    setattr(task, field, req[field])
 
-    save_data()
-    return jsonify(task), 200
+        if 'status' in req and req['status'] not in ['pending', 'done']:
+            return jsonify({'error': 'Status must be either "pending" or "done"'}), 400
 
+        task.updated_at = datetime.now()
+        session.commit()
+        return jsonify(row_to_task(task)), 200
+
+# DELETE /tasks/<task_id>
 @app.route('/tasks/<task_id>', methods=['DELETE'])
 def delete_task(task_id):
-    data['tasks'] = [t for t in data['tasks'] if t['id'] != task_id]
-    save_data()
-    return jsonify({'message': 'Task deleted successfully'}), 200
+    with SessionLocal() as session:
+        deleted = session.query(Task).filter(Task.id == task_id).delete()
+        session.commit()
+        if not deleted:
+            return jsonify({'error': 'Task not found'}), 404
+        return jsonify({'message': 'Task deleted successfully'}), 200
+
+# Tags API
+@app.route('/tags', methods=['GET'])
+def get_tags():
+    with SessionLocal() as session:
+        tags = session.query(Tag).all()
+        return jsonify({'tags': [
+            {'id': tg.id, 'name': tg.name, 'color': tg.color, 'created_at': tg.created_at.isoformat()} for tg in tags
+        ]}), 200
+
+
+@app.route('/tags', methods=['POST'])
+def create_tag():
+    req = request.get_json() or {}
+    name = (req.get('name') or '').strip()
+    if not name:
+        return jsonify({'error': 'Tag name is required'}), 400
+
+    with SessionLocal() as session:
+        existing = session.query(Tag).filter(Tag.name == name).first()
+        if existing:
+            return jsonify({'error': 'Tag already exists'}), 409
+
+        tg = Tag(
+            id=str(uuid.uuid4()),
+            name=name,
+            color=req.get('color'),
+            created_at=datetime.now()
+        )
+        session.add(tg)
+        session.commit()
+        return jsonify({'id': tg.id, 'name': tg.name, 'color': tg.color, 'created_at': tg.created_at.isoformat()}), 201
+
+
+@app.route('/tags/<tag_id>', methods=['PUT'])
+def update_tag(tag_id):
+    req = request.get_json() or {}
+    with SessionLocal() as session:
+        tag = session.get(Tag, tag_id)
+        if not tag:
+            return jsonify({'error': 'Tag not found'}), 404
+
+        if 'name' in req:
+            newname = (req['name'] or '').strip()
+            if not newname:
+                return jsonify({'error': 'Tag name cannot be empty'}), 400
+            other = session.query(Tag).filter(Tag.name == newname, Tag.id != tag_id).first()
+            if other:
+                return jsonify({'error': 'Tag name already used'}), 409
+            tag.name = newname
+
+        if 'color' in req:
+            tag.color = req['color']
+
+        session.commit()
+        return jsonify({'id': tag.id, 'name': tag.name, 'color': tag.color, 'created_at': tag.created_at.isoformat()}), 200
+
+
+@app.route('/tags/<tag_id>', methods=['DELETE'])
+def delete_tag(tag_id):
+    with SessionLocal() as session:
+        tag = session.get(Tag, tag_id)
+        if not tag:
+            return jsonify({'error': 'Tag not found'}), 404
+
+        session.delete(tag)
+
+        # Remove tag id from any tasks that include it
+        tasks = session.query(Task).filter(Task.tags != None).all()
+        for t in tasks:
+            if t.tags and tag_id in t.tags:
+                t.tags = [x for x in t.tags if x != tag_id]
+
+        session.commit()
+        return jsonify({'message': 'Tag deleted successfully'}), 200
+
+
+# Get tasks by tag name
+@app.route('/tasks/tag/<tag_id>', methods=['GET'])
+def get_tasks_by_tag(tag_id):
+    with SessionLocal() as session:
+        # filter tasks where tags array contains tag_id
+        tasks = session.query(Task).filter(Task.tags.contains([tag_id])).all()
+        return jsonify({'tasks': [row_to_task(t) for t in tasks]}), 200
+
+
+# Get tasks by group
+@app.route('/groups/<group_id>/tasks', methods=['GET'])
+def get_tasks_by_group(group_id):
+    with SessionLocal() as session:
+        tasks = session.query(Task).filter(Task.group_id == group_id).all()
+        return jsonify({'tasks': [row_to_task(t) for t in tasks]}), 200
+
+
+# GET /tasks/counts - overall counts and per-group counts
+@app.route('/tasks/counts', methods=['GET'])
+def get_tasks_counts():
+    today = datetime.now().date().isoformat()
+    with SessionLocal() as session:
+        total = session.query(Task).count()
+        completed = session.query(Task).filter(Task.status == 'done').count()
+        pending = session.query(Task).filter(Task.status == 'pending').count()
+        today_count = session.query(Task).filter(Task.due_date == today).count()
+        upcoming = session.query(Task).filter(Task.due_date != None, Task.due_date > today).count()
+
+        # counts per group
+        groups = session.query(Group).all()
+        per_group = []
+        for g in groups:
+            cnt = session.query(Task).filter(Task.group_id == g.id).count()
+            per_group.append({'group_id': g.id, 'count': cnt})
+
+        return jsonify({
+            'total': total,
+            'completed': completed,
+            'pending': pending,
+            'today': today_count,
+            'upcoming': upcoming,
+            'per_group': per_group
+        }), 200
+
+
+@app.route('/tasks/counts/summary', methods=['GET'])
+def get_tasks_counts_summary():
+    """Lightweight summary of top-level counts for badges and quick UI updates."""
+    with SessionLocal() as session:
+        total = session.query(Task).count()
+        completed = session.query(Task).filter(Task.status == 'done').count()
+        pending = session.query(Task).filter(Task.status == 'pending').count()
+        return jsonify({'total': total, 'pending': pending, 'completed': completed}), 200
+
 
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=5000)
