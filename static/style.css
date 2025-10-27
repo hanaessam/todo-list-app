@@ -867,6 +867,71 @@ body {
     align-items: center;
 }
 
+/* Tag checkbox selector - simpler alternative to multi-select */
+.tag-checkboxes {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    max-height: 200px;
+    overflow-y: auto;
+    padding: 12px;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius);
+}
+
+.tag-checkbox-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius-sm);
+    cursor: pointer;
+    transition: var(--transition);
+    user-select: none;
+    min-width: fit-content;
+}
+
+.tag-checkbox-item:hover {
+    background: var(--bg-hover);
+    border-color: var(--accent-primary);
+}
+
+.tag-checkbox-item.selected {
+    background: var(--accent-primary);
+    border-color: var(--accent-primary);
+    color: white;
+}
+
+.tag-checkbox-item input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+    margin: 0;
+    padding: 0;
+    accent-color: var(--accent-primary);
+}
+
+.tag-checkbox-item .tag-bubble {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+.tag-checkbox-item .tag-name {
+    font-size: 13px;
+    font-weight: 500;
+}
+
+.no-tags {
+    padding: 16px;
+    text-align: center;
+    color: var(--text-muted);
+    font-style: italic;
+}
+
 /* Multi-select (chip + dropdown) */
 .multi-select {
     position: relative;
@@ -882,7 +947,8 @@ body {
     align-items: center;
     gap: 6px;
     flex-wrap: wrap;
-    max-width: 60%;
+    /* Allow chips to use available space so added chips are visible inside modals */
+    max-width: 100%;
 }
 
 .multi-select .chip {

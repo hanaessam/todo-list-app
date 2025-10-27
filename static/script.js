@@ -168,144 +168,75 @@ function renderTags(tags) {
         });
     });
 
-    // update any multi-select widgets on the page
-    populateMultiSelects();
+    // update any tag checkboxes on the page AFTER tags are loaded
+    console.debug('[renderTags] currentTags updated, updating tag checkboxes', { tagCount: currentTags.length });
+    
+    // Update existing tag checkboxes if any are open
+    const addTaskCheckboxes = document.getElementById('taskTagCheckboxes');
+    if (addTaskCheckboxes) {
+        populateTagCheckboxes('taskTagCheckboxes', []);
+    }
+    
+    const editTaskCheckboxes = document.getElementById('editTaskTagCheckboxes');
+    if (editTaskCheckboxes) {
+        // Preserve existing selections during refresh
+        const currentSelections = getSelectedTagIds('editTaskTagCheckboxes');
+        populateTagCheckboxes('editTaskTagCheckboxes', currentSelections);
+    }
 }
 
-function populateMultiSelects() {
-    // Initialize all .multi-select widgets on the page using currentTags
-    const widgets = document.querySelectorAll('.multi-select');
-    widgets.forEach(widget => {
-        initializeMultiSelect(widget, []);
+// Simplified tag selection using checkboxes
+function populateTagCheckboxes(containerId, selectedTagIds = []) {
+    const container = document.getElementById(containerId);
+    if (!container) return;
+
+    console.debug('[populateTagCheckboxes]', { containerId, selectedTagIds, tagCount: currentTags.length });
+
+    if (currentTags.length === 0) {
+        container.innerHTML = '<div class="no-tags">No tags available. Create one first.</div>';
+        return;
+    }
+
+    container.innerHTML = currentTags.map(tag => `
+        <div class="tag-checkbox-item ${selectedTagIds.includes(tag.id) ? 'selected' : ''}" data-tag-id="${tag.id}">
+            <input type="checkbox" id="tag-${tag.id}" ${selectedTagIds.includes(tag.id) ? 'checked' : ''}>
+            <span class="tag-bubble" style="background: ${tag.color || '#ccc'}"></span>
+            <label for="tag-${tag.id}" class="tag-name">${tag.name}</label>
+        </div>
+    `).join('');
+
+    // Add click handlers for the checkbox items
+    container.querySelectorAll('.tag-checkbox-item').forEach(item => {
+        item.addEventListener('click', (e) => {
+            const checkbox = item.querySelector('input[type="checkbox"]');
+            const tagId = item.getAttribute('data-tag-id');
+            
+            // Toggle if not clicking directly on checkbox
+            if (e.target !== checkbox) {
+                checkbox.checked = !checkbox.checked;
+            }
+            
+            // Update visual state
+            if (checkbox.checked) {
+                item.classList.add('selected');
+            } else {
+                item.classList.remove('selected');
+            }
+            
+            console.debug('[tag-checkbox] toggled', { tagId, checked: checkbox.checked });
+        });
     });
 }
 
-function initializeMultiSelect(rootElementOrId, preselectedIds = []) {
-    const root = typeof rootElementOrId === 'string' ? document.getElementById(rootElementOrId) : rootElementOrId;
-    if (!root) return;
-
-    const chips = root.querySelector('.chips');
-    const input = root.querySelector('.multi-input');
-    const options = root.querySelector('.options');
-
-    // build options from currentTags
-    const buildOptions = () => {
-        if (!options) return;
-        options.innerHTML = currentTags.map(t => `
-            <div class="option" data-id="${t.id}" data-color="${t.color || '#ccc'}">
-                <span class="tag-bubble" style="background:${t.color || '#ccc'}"></span>
-                <span class="option-label">${t.name}</span>
-            </div>
-        `).join('') || `<div class="no-options">No tags available</div>`;
-
-        // mark preselected
-        preselectedIds.forEach(id => {
-            const opt = options.querySelector(`.option[data-id="${id}"]`);
-            if (opt) opt.classList.add('selected');
-        });
-    };
-
-    const openOptions = () => { if (options) options.style.display = 'block'; };
-    const closeOptions = () => { if (options) options.style.display = 'none'; };
-
-    const clearChips = () => {
-        if (!chips) return;
-        chips.innerHTML = '';
-    };
-
-    const addChip = (id, name, color) => {
-        if (!chips) return;
-        // prevent duplicates
-        if (chips.querySelector(`.chip[data-id="${id}"]`)) return;
-        const chip = document.createElement('span');
-        chip.className = 'chip';
-        chip.setAttribute('data-id', id);
-        chip.innerHTML = `<span class="tag-bubble" style="background:${color}"></span><span class="chip-label">${name}</span><span class="remove-chip">×</span>`;
-        chips.appendChild(chip);
-
-        // remove handler
-        chip.querySelector('.remove-chip').addEventListener('click', (e) => {
-            e.stopPropagation();
-            // unselect option
-            const opt = options && options.querySelector(`.option[data-id="${id}"]`);
-            if (opt) opt.classList.remove('selected');
-            chip.remove();
-        });
-    };
-
-    const removeChipById = (id) => {
-        if (!chips) return;
-        const chip = chips.querySelector(`.chip[data-id="${id}"]`);
-        if (chip) chip.remove();
-    };
-
-    const getSelectedIds = () => {
-        if (!chips) return [];
-        return Array.from(chips.querySelectorAll('.chip')).map(c => c.getAttribute('data-id'));
-    };
-
-    // build options initially
-    buildOptions();
-
-    // preselect chips
-    if (preselectedIds && preselectedIds.length) {
-        preselectedIds.forEach(id => {
-            const tag = currentTags.find(t => t.id === id);
-            if (tag) addChip(tag.id, tag.name, tag.color || '#ccc');
-        });
-    }
-
-    // option click handler (use event delegation)
-    if (options) {
-        options.addEventListener('click', (e) => {
-            const opt = e.target.closest('.option');
-            if (!opt) return;
-            const id = opt.getAttribute('data-id');
-            const label = opt.querySelector('.option-label').textContent;
-            const color = opt.getAttribute('data-color') || '#ccc';
-
-            if (opt.classList.contains('selected')) {
-                opt.classList.remove('selected');
-                removeChipById(id);
-            } else {
-                opt.classList.add('selected');
-                addChip(id, label, color);
-            }
-        });
-    }
-
-    // input handlers for search/filter
-    if (input) {
-        input.addEventListener('focus', () => { buildOptions(); openOptions(); });
-        input.addEventListener('click', (e) => { e.stopPropagation(); buildOptions(); openOptions(); });
-        input.addEventListener('input', () => {
-            const q = input.value.trim().toLowerCase();
-            if (!options) return;
-            const opts = Array.from(options.querySelectorAll('.option'));
-            let any = false;
-            opts.forEach(o => {
-                const label = o.querySelector('.option-label').textContent.toLowerCase();
-                if (label.includes(q)) { o.style.display = ''; any = true; } else { o.style.display = 'none'; }
-            });
-            // show a message if no matches
-            if (!any) {
-                options.innerHTML = `<div class="no-options">No tags match "${input.value}"</div>`;
-            }
-        });
-    }
-
-    // close if clicked outside (store handler on the root so we can remove it later)
-    if (root._outsideClickHandler) document.removeEventListener('click', root._outsideClickHandler);
-    root._outsideClickHandler = (e) => {
-        if (!root.contains(e.target)) {
-            closeOptions();
-        }
-    };
-    setTimeout(() => document.addEventListener('click', root._outsideClickHandler));
-
-    // store helpers on the root for later queries
-    root.getSelectedIds = getSelectedIds;
-    root.clearSelection = () => { clearChips(); const opts = options && options.querySelectorAll('.option'); if (opts) opts.forEach(o => o.classList.remove('selected')); };
+function getSelectedTagIds(containerId) {
+    const container = document.getElementById(containerId);
+    if (!container) return [];
+    
+    const selectedIds = Array.from(container.querySelectorAll('input[type="checkbox"]:checked'))
+        .map(checkbox => checkbox.id.replace('tag-', ''));
+    
+    console.debug('[getSelectedTagIds]', { containerId, selectedIds });
+    return selectedIds;
 }
 
 function openCreateTagModal() {
@@ -846,10 +777,11 @@ function showAddTaskModal() {
     document.getElementById('taskDueTime').value = '';
     document.getElementById('taskPrioritySelect').value = 'medium';
     document.getElementById('taskGroupSelect').value = '';
-    // initialize/populate multi-select for tags
-    populateMultiSelects();
-    const addWidget = document.getElementById('taskTagMulti');
-    if (addWidget && addWidget.clearSelection) addWidget.clearSelection();
+    
+    // populate tag checkboxes for selection
+    console.debug('[showAddTaskModal] populating tag checkboxes', { tagCount: currentTags.length });
+    populateTagCheckboxes('taskTagCheckboxes', []);
+    
     document.getElementById('taskContentInput').focus();
 }
 
@@ -901,23 +833,19 @@ function showEditTaskModal(task) {
 
         <div class="form-group">
             <label>Tags</label>
-            <div class="tags-input-container" id="editTagsContainer">
-                <div class="multi-select" id="editTaskTagMulti">
-                    <div class="chips" id="editTaskTagChips"></div>
-                    <input type="text" class="multi-input" id="editTaskTagInput" placeholder="Search tags or add..." autocomplete="off">
-                    <div class="options" id="editTaskTagOptions" style="display:none"></div>
+            <div class="tags-input-container">
+                <div class="tag-checkboxes" id="editTaskTagCheckboxes">
+                    <!-- Tag checkboxes will be populated here -->
                 </div>
+                <button class="icon-btn" type="button" onclick="openCreateTagModal()" title="Create tag"><i class="fas fa-plus"></i></button>
             </div>
         </div>
     `;
     
-    // Add tag input event listener
-    // initialize multi-select for edit with preselected tag ids
-    const selectedIds = task.tags ? task.tags.map(t => t.id) : [];
-    // populate options then initialize with selected ids
-    populateMultiSelects();
-    const editWidget = document.getElementById('editTaskTagMulti');
-    if (editWidget) initializeMultiSelect(editWidget, selectedIds);
+    // populate tag checkboxes with preselected tag ids
+    const selectedTagIds = task.tags ? task.tags.map(t => t.id) : [];
+    console.debug('[showEditTaskModal] populating tag checkboxes', { selectedTagIds, tagCount: currentTags.length });
+    populateTagCheckboxes('editTaskTagCheckboxes', selectedTagIds);
     
     modal.style.display = 'block';
 }
@@ -962,8 +890,9 @@ async function addTask() {
         timeRange = dueTime;
     }
     
-    const addWidget = document.getElementById('taskTagMulti');
-    const tags = addWidget && addWidget.getSelectedIds ? addWidget.getSelectedIds() : [];
+    // Get selected tags using the new checkbox system
+    const tags = getSelectedTagIds('taskTagCheckboxes');
+    console.debug('[addTask] selected tags:', tags);
     
     try {
         const response = await fetch('/tasks', {
@@ -1018,8 +947,9 @@ async function updateTask() {
         timeRange = dueTime; // keep raw HH:MM
     }
     
-    const editWidget = document.getElementById('editTaskTagMulti');
-    const tags = editWidget && editWidget.getSelectedIds ? editWidget.getSelectedIds() : [];
+    // Get selected tags using the new checkbox system
+    const tags = getSelectedTagIds('editTaskTagCheckboxes');
+    console.debug('[updateTask] selected tags:', tags);
     
     try {
         const response = await fetch(`/tasks/${editingTaskId}`, {
